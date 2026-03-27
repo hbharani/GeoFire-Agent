@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: geofire_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      - DATA_DIR=/data
+      - DAGSTER_HOST=dagster
+      - DAGSTER_PORT=3000
+    depends_on:
+      - dagster
+    networks:
+      - geofire_net
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: geofire_frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - geofire_net
+
+  dagster:
+    build:
+      context: ./dagster_pipeline
+    container_name: geofire_dagster
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    environment:
+      - DATA_DIR=/data
+    networks:
+      - geofire_net
+
+networks:
+  geofire_net:
+    driver: bridge

@@ -1,3 +1,15 @@
+# ---- Project-specific -------------------------------------------------------
+# Frontend build artifacts and dependencies
+frontend/node_modules/
+frontend/dist/
+
+# Uploaded data files (shared volume — not tracked in git)
+data/
+
+# Local environment overrides
+*.env.local
+# ---- End project-specific ---------------------------------------------------
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

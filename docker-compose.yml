@@ -1,0 +1,76 @@
+
+services:
+  db:
+    image: postgis/postgis:15-3.4-alpine
+    container_name: geofire_db
+    environment:
+      - POSTGRES_USER=geofire
+      - POSTGRES_PASSWORD=geofire_secret
+      - POSTGRES_DB=geofire
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U geofire -d geofire"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+    networks:
+      - geofire_net
+
+  backend:
+    build:
+      context: ./backend
+    container_name: geofire_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data
+    environment:
+      - DATA_DIR=/data
+      - DAGSTER_HOST=dagster
+      - DAGSTER_PORT=3000
+      - DATABASE_URL=postgresql://geofire:geofire_secret@db:5432/geofire
+    depends_on:
+      dagster:
+        condition: service_started
+      db:
+        condition: service_healthy
+    networks:
+      - geofire_net
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: geofire_frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    networks:
+      - geofire_net
+
+  dagster:
+    build:
+      context: ./dagster_pipeline
+    container_name: geofire_dagster
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    environment:
+      - DATA_DIR=/data
+      - DATABASE_URL=postgresql://geofire:geofire_secret@db:5432/geofire
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - geofire_net
+
+networks:
+  geofire_net:
+    driver: bridge
+
+volumes:
+  pgdata:

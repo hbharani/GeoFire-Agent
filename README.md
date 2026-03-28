@@ -57,6 +57,10 @@ cd GeoFire-Agent
 docker compose up -d --build
 
 # 3. Open http://localhost:5173 in your browser!
+
+# 4. Download Sample Data
+# Head over to the Releases tab on GitHub to download `geofire_sample_data.zip`. 
+# Extract it to securely retrieve the original Red, NIR, and Utility Line files without bloating Git!
 ```
 
 ## System Workflow Pipeline

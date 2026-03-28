@@ -1,29 +1,37 @@
 """
-FastAPI backend for the GeoFire-Agent MVP.
-
-Endpoints:
-  POST /upload  — accept a GeoTIFF satellite image and a Shapefile/GeoJSON utility
-                  line file, persist them to the /data directory, then trigger a
-                  Dagster job via the Dagster GraphQL API using those file paths as
-                  run config.
-  GET  /health  — simple liveness check.
+FastAPI PostGIS Backend for the GeoFire-Agent MVP.
 """
 
 import os
 import json
 import logging
 from pathlib import Path
+from typing import Optional
 
 import httpx
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Depends
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from sqlalchemy import text
+from pydantic import BaseModel
+
+from database import engine, Base, get_db
+from models import Project, GeospatialAsset, AnalysisRun
 
 logger = logging.getLogger("geofire.backend")
 logging.basicConfig(level=logging.INFO)
 
-app = FastAPI(title="GeoFire-Agent API", version="0.1.0")
+from contextlib import asynccontextmanager
 
-# Allow the React dev-server and the production build to call the API.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Natively defer Database metadata execution until active server boot
+    Base.metadata.create_all(bind=engine)
+    yield
+
+app = FastAPI(title="GeoFire-Agent API", version="0.1.0", lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,9 +39,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --------------------------------------------------------------------------- #
-# Configuration (overridable via environment variables)                        #
-# --------------------------------------------------------------------------- #
 DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
 DAGSTER_HOST = os.getenv("DAGSTER_HOST", "dagster")
 DAGSTER_PORT = os.getenv("DAGSTER_PORT", "3000")
@@ -41,17 +46,12 @@ DAGSTER_URL = f"http://{DAGSTER_HOST}:{DAGSTER_PORT}/graphql"
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-
-# --------------------------------------------------------------------------- #
-# Helpers                                                                      #
-# --------------------------------------------------------------------------- #
+class ProjectCreate(BaseModel):
+    name: str
 
 async def _save_upload(upload: UploadFile, destination: Path) -> None:
-    """Stream an uploaded file to *destination*."""
     contents = await upload.read()
     destination.write_bytes(contents)
-    logger.info("Saved upload to %s (%d bytes)", destination, len(contents))
-
 
 LAUNCH_RUN_MUTATION = """
 mutation LaunchRun($config: RunConfigData!, $jobName: String!, $repositoryLocationName: String!, $repositoryName: String!) {
@@ -66,124 +66,195 @@ mutation LaunchRun($config: RunConfigData!, $jobName: String!, $repositoryLocati
     }
   ) {
     __typename
-    ... on LaunchRunSuccess {
-      run {
-        runId
-      }
-    }
-    ... on PythonError {
-      message
-    }
-    ... on InvalidSubsetError {
-      message
-    }
-    ... on RunConfigValidationInvalid {
-      errors {
-        message
-      }
-    }
+    ... on LaunchRunSuccess { run { runId } }
+    ... on PythonError { message }
   }
 }
 """
 
+RUN_STATUS_QUERY = """
+query GetRunStatus($runId: ID!) {
+  pipelineRunOrError(runId: $runId) {
+    ... on Run { status }
+  }
+}
+"""
 
-async def _trigger_dagster_job(satellite_path: str, utility_lines_path: str) -> dict:
-    """
-    Launch the ``fire_risk_pipeline`` Dagster job via the GraphQL API,
-    passing the file paths as run config so the ops know where to read data from.
-    """
+async def _trigger_dagster_job(red_path: str, nir_path: str, utility_path: str, canopy_path: str, project_id: str, run_id: str) -> dict:
     run_config = {
         "ops": {
-            "ingest_satellite_image": {
-                "config": {"file_path": satellite_path}
-            },
-            "ingest_utility_lines": {
-                "config": {"file_path": utility_lines_path}
-            },
+            "ingest_red_band": {"config": {"file_path": red_path}},
+            "ingest_nir_band": {"config": {"file_path": nir_path}},
+            "ingest_utility_lines": {"config": {"file_path": utility_path}},
+            "ingest_canopy_height": {"config": {"file_path": canopy_path}},
+            "mask_and_calculate_risk": {"config": {"project_id": project_id, "run_id": run_id}},
         }
     }
-
     variables = {
         "config": run_config,
         "jobName": "fire_risk_pipeline",
-        "repositoryLocationName": "dagster_pipeline.pipeline",
+        "repositoryLocationName": "pipeline.py",
         "repositoryName": "__repository__",
     }
-
     async with httpx.AsyncClient(timeout=15.0) as client:
         response = await client.post(
-            DAGSTER_URL,
-            json={"query": LAUNCH_RUN_MUTATION, "variables": variables},
-            headers={"Content-Type": "application/json"},
+            DAGSTER_URL, json={"query": LAUNCH_RUN_MUTATION, "variables": variables},
         )
         response.raise_for_status()
         return response.json()
 
 
-# --------------------------------------------------------------------------- #
-# Routes                                                                       #
-# --------------------------------------------------------------------------- #
-
 @app.get("/health", tags=["ops"])
 async def health():
-    """Liveness check."""
     return {"status": "ok"}
+
+@app.post("/projects", tags=["projects"])
+async def create_project(project: ProjectCreate, db: Session = Depends(get_db)):
+    db_project = Project(name=project.name)
+    db.add(db_project)
+    db.commit()
+    db.refresh(db_project)
+    return db_project
+
+@app.get("/projects", tags=["projects"])
+async def get_projects(db: Session = Depends(get_db)):
+    projects = db.query(Project).order_by(Project.created_at.desc()).all()
+    return projects
+
+@app.delete("/projects/{project_id}", tags=["projects"])
+async def delete_project(project_id: str, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    db.delete(project)
+    db.commit()
+    return {"status": "success"}
+
+@app.put("/projects/{project_id}", tags=["projects"])
+async def update_project(project_id: str, proj_update: ProjectCreate, db: Session = Depends(get_db)):
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    project.name = proj_update.name
+    db.commit()
+    db.refresh(project)
+    return project
+
+@app.get("/projects/{project_id}/runs", tags=["runs"])
+async def get_project_runs(project_id: str, db: Session = Depends(get_db)):
+    runs = db.query(AnalysisRun).filter(AnalysisRun.project_id == project_id).order_by(AnalysisRun.created_at.desc()).all()
+    return runs
+
+@app.get("/status/{run_id}", tags=["pipeline"])
+async def get_status(run_id: str, db_run_id: Optional[str] = None, db: Session = Depends(get_db)):
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        try:
+            response = await client.post(DAGSTER_URL, json={"query": RUN_STATUS_QUERY, "variables": {"runId": run_id}})
+            data = response.json()
+            status = data.get("data", {}).get("pipelineRunOrError", {}).get("status", "UNKNOWN")
+            
+            if db_run_id and status in ["SUCCESS", "FAILURE", "CANCELED"]:
+                run = db.query(AnalysisRun).filter(AnalysisRun.id == db_run_id).first()
+                if run and run.status != status:
+                    run.status = status
+                    db.commit()
+
+            return {"run_id": run_id, "status": status}
+        except Exception as e:
+            return {"run_id": run_id, "status": "ERROR", "detail": str(e)}
+
+@app.get("/runs/{run_id}/results", tags=["pipeline"])
+async def get_run_results(run_id: str, db: Session = Depends(get_db)):
+    query = """
+    SELECT json_build_object(
+        'type', 'FeatureCollection',
+        'features', COALESCE(json_agg(
+            json_build_object(
+                'type',       'Feature',
+                'geometry',   ST_AsGeoJSON(geometry)::json,
+                'properties', json_build_object('risk_level', risk_level)
+            )
+        ), '[]'::json)
+    )
+    FROM geospatial_assets
+    WHERE run_id = :rid AND asset_type = 'RISK_POLYGON';
+    """
+    result = db.execute(text(query), {"rid": run_id}).scalar()
+    return JSONResponse(content=result)
+
+@app.get("/runs/{run_id}/utility-lines", tags=["pipeline"])
+async def get_run_utility_lines(run_id: str, db: Session = Depends(get_db)):
+    query = """
+    SELECT json_build_object(
+        'type', 'FeatureCollection',
+        'features', COALESCE(json_agg(
+            json_build_object(
+                'type',       'Feature',
+                'geometry',   ST_AsGeoJSON(geometry)::json,
+                'properties', json_build_object('Name', 'Utility Line')
+            )
+        ), '[]'::json)
+    )
+    FROM geospatial_assets
+    WHERE run_id = :rid AND asset_type = 'UTILITY_LINE';
+    """
+    result = db.execute(text(query), {"rid": run_id}).scalar()
+    return JSONResponse(content=result)
 
 
 @app.post("/upload", tags=["pipeline"])
 async def upload_files(
-    satellite_image: UploadFile = File(..., description="GeoTIFF satellite image"),
-    utility_lines: UploadFile = File(..., description="Shapefile (.zip) or GeoJSON utility lines"),
+    project_id: str = Form(...),
+    red_band: UploadFile = File(...),
+    nir_band: UploadFile = File(...),
+    utility_lines: UploadFile = File(...),
+    canopy_height: Optional[UploadFile] = None,
+    db: Session = Depends(get_db)
 ):
-    """
-    Accept a GeoTIFF and a utility-line file, persist them to the shared data
-    volume, then trigger the Dagster fire-risk pipeline.
-    """
-    # Validate basic content type hints (not strict — Docker env won't always
-    # set MIME types correctly for GeoTIFF / Shapefile).
-    allowed_extensions = {
-        "satellite_image": {".tif", ".tiff", ".geotiff"},
-        "utility_lines": {".geojson", ".json", ".zip", ".shp"},
-    }
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
 
-    sat_ext = Path(satellite_image.filename or "").suffix.lower()
-    util_ext = Path(utility_lines.filename or "").suffix.lower()
+    # Initialize a new isolated AnalysisRun layer
+    current_run = AnalysisRun(project_id=project.id, name=f"Execution: {red_band.filename[:15]}")
+    db.add(current_run)
+    db.commit()
+    db.refresh(current_run)
 
-    if sat_ext not in allowed_extensions["satellite_image"]:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Unsupported satellite image format '{sat_ext}'. "
-                   f"Allowed: {allowed_extensions['satellite_image']}",
-        )
-    if util_ext not in allowed_extensions["utility_lines"]:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Unsupported utility lines format '{util_ext}'. "
-                   f"Allowed: {allowed_extensions['utility_lines']}",
-        )
+    proj_dir = DATA_DIR / project_id / str(current_run.id)
+    proj_dir.mkdir(parents=True, exist_ok=True)
+    
+    red_dest = proj_dir / red_band.filename
+    nir_dest = proj_dir / nir_band.filename
+    util_dest = proj_dir / utility_lines.filename
 
-    satellite_dest = DATA_DIR / satellite_image.filename
-    utility_dest = DATA_DIR / utility_lines.filename
+    await _save_upload(red_band, red_dest)
+    await _save_upload(nir_band, nir_dest)
+    await _save_upload(utility_lines, util_dest)
 
-    await _save_upload(satellite_image, satellite_dest)
-    await _save_upload(utility_lines, utility_dest)
+    canopy_dest_str = ""
+    if canopy_height:
+        canopy_dest = proj_dir / canopy_height.filename
+        await _save_upload(canopy_height, canopy_dest)
+        canopy_dest_str = str(canopy_dest)
 
-    # Trigger the Dagster job — failures are logged but do not block the
-    # response so the caller knows the files were received.
+    project.status = "RUNNING"
+    current_run.status = "RUNNING"
+    db.commit()
+
     dagster_result: dict = {}
     try:
         dagster_result = await _trigger_dagster_job(
-            satellite_path=str(satellite_dest),
-            utility_lines_path=str(utility_dest),
+            red_path=str(red_dest),
+            nir_path=str(nir_dest),
+            utility_path=str(util_dest),
+            canopy_path=canopy_dest_str,
+            project_id=project_id,
+            run_id=str(current_run.id)
         )
-        logger.info("Dagster response: %s", json.dumps(dagster_result))
-    except (httpx.HTTPError, httpx.TimeoutException) as exc:  # noqa: BLE001
-        logger.warning("Could not reach Dagster: %s", exc)
+    except Exception as exc:
         dagster_result = {"error": str(exc)}
+        current_run.status = "FAILED"
+        db.commit()
 
-    return {
-        "message": "Files received and pipeline triggered.",
-        "satellite_image": str(satellite_dest),
-        "utility_lines": str(utility_dest),
-        "dagster": dagster_result,
-    }
+    return {"message": "Files received", "dagster": dagster_result, "project_id": project_id, "run_id": str(current_run.id)}

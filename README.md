@@ -1,52 +1,48 @@
 # GeoFire-Agent
 
-> **MVP** — Vegetation & Utility-Line Fire-Risk Platform
+> **Enterprise-Ready** — Vegetation & Utility-Line Fire-Risk Platform
 
 ## Overview
 
-A full-stack geospatial MVP that lets you upload a satellite GeoTIFF and a utility-line Shapefile/GeoJSON, then automatically triggers an NDVI-based fire-risk analysis pipeline orchestrated by Dagster.
+A full-stack geospatial platform that lets you define tracking Workspaces, upload satellite GeoTIFFs (Red, NIR, and optional Canopy Height Models) and Utility-Line infrastructure, and then automatically triggers a high-performance NDVI-based fire-risk analysis pipeline orchestrated by Dagster.
+
+Crucially, the entire agent runs off a C-optimized **PostgreSQL / PostGIS** database backend to natively compute vector intersections and strictly organize analysis data under isolated `Project` and `AnalysisRun` contexts.
 
 | Service | URL (local) |
 |---------|------------|
-| React frontend | http://localhost:5173 |
-| FastAPI backend | http://localhost:8000 |
-| FastAPI docs (Swagger) | http://localhost:8000/docs |
-| Dagster webserver | http://localhost:3000 |
+| React Frontend | http://localhost:5173 |
+| FastAPI Backend | http://localhost:8000 |
+| FastAPI Docs | http://localhost:8000/docs |
+| Dagster Webserver | http://localhost:3000 |
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 18, Vite, TailwindCSS, react-leaflet (OpenStreetMap) |
-| Backend | FastAPI, Uvicorn |
+| Frontend | React 18, Vite, TailwindCSS, React-Leaflet |
+| Backend | FastAPI, SQLAlchemy, GeoAlchemy2, Uvicorn |
+| Database | PostgreSQL 15, PostGIS 3.4 |
 | Orchestration | Dagster |
-| Geospatial | GeoPandas, Rasterio, Shapely |
+| Geospatial Compute | GeoPandas, Rasterio, Shapely |
 | Infrastructure | Docker Compose |
 
-## Project Structure
+## Architecture Structure
 
-```
+```text
 GeoFire-Agent/
-├── docker-compose.yml
-├── data/                        # shared data volume (git-ignored)
+├── docker-compose.yml           # Bootstraps Postgres, FastAPI, Dagster, and Vite
 ├── backend/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── main.py                  # FastAPI app — upload + Dagster trigger
+│   ├── database.py              # SQLAlchemy engine bound to async lifespans
+│   ├── models.py                # Project, AnalysisRun, and GeospatialAsset schemas
+│   └── main.py                  # Routing endpoints + Dagster telemetry interceptors
 ├── dagster_pipeline/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   ├── workspace.yaml
-│   └── pipeline.py              # Dagster job with stubbed ops
+│   └── pipeline.py              # Compute graph handling chunked EWKT PostGIS batching
 └── frontend/
-    ├── Dockerfile
-    ├── package.json
-    ├── vite.config.js
-    ├── index.html
     └── src/
-        ├── main.jsx
-        ├── index.css
-        └── App.jsx              # Full-screen map + floating upload panel
+        ├── components/
+        │   ├── Dashboard.jsx    # Active grid module for handling Project CRUD
+        │   └── MapWorkspace.jsx # Leaflet map with overlaid UI Analysis History tabs
+        └── App.jsx              # Lightweight UI Context router
 ```
 
 ## Quick Start
@@ -56,20 +52,29 @@ GeoFire-Agent/
 git clone https://github.com/hbharani/GeoFire-Agent.git
 cd GeoFire-Agent
 
-# 2. Create the shared data directory
-mkdir -p data
+# 2. Build and start all services natively
+# (The Postgres DB requires time to boot its TCP layer)
+docker compose up -d --build
 
-# 3. Build and start all services
-docker compose up --build
-
-# 4. Open http://localhost:5173 in your browser
+# 3. Open http://localhost:5173 in your browser!
 ```
 
-## Pipeline Steps (stubbed)
+## System Workflow Pipeline
 
-1. **ingest_satellite_image** — validate and load a GeoTIFF
-2. **ingest_utility_lines** — validate and load a Shapefile or GeoJSON
-3. **calculate_vegetation_index** — compute NDVI from NIR/Red bands *(mock)*
-4. **mask_and_calculate_risk** — buffer utility lines 30 m and intersect with NDVI *(mock)*
+Instead of dragging huge flat `.geojson` outputs out to the UI, the GeoFire backend natively translates calculations straight into binary database mappings:
 
-Swap the `[MOCK]` stubs in `dagster_pipeline/pipeline.py` for real `rasterio` / `geopandas` logic when ready.
+1. **Ingestion** — API caches Multi-spectral TIFF layers (Red, NIR, Canopy Height) on disk and maps their path string boundaries.
+2. **Buffer Operations** — Identifies shape intersections, and isolates utility bounds exactly matching active target grids.
+3. **Vegetation & Canopy Classification** — Evaluates spectral boundaries `((NIR - Red) / (NIR + Red))` and integrates CHM verticality to map Low, Medium, and High foliage threat sectors.
+4. **PostGIS Chunk Sync** — Overrides strict Python geometry processing and relies on raw `SQLAlchemy Core` to batch inject vectors dynamically formatted as `"SRID=4326;{geometry}"` cleanly isolated by `run_id`.
+5. **Dynamic UI Rendering** — The interface isolates execution histories dynamically utilizing `ST_AsGeoJSON()`.
+
+## Future Work
+
+This V1 MVP demonstrates high-performance spatial orchestration, but the analytical models will be expanded in future versions based on interest and specific utility needs:
+
+- **True Fuel Moisture (NDMI)**: Integrating SWIR (Shortwave Infrared) bands alongside NDVI to dynamically calculate the physical water-content of vegetation (dry dead timber vs healthy wet forests).
+- **Topographical Scalars (DEM)**: Utilizing Digital Elevation Models to scale fire-spread risk exponentially across steeply inclined transmission line right-of-ways.
+- **Meteorological API Integration**: Layering live relative humidity, ambient temperature, and wind-vector data onto the localized threat score.
+- **Advanced Canopy Strike Models**: Further utilizing the Canopy Height Model (CHM) ingest layer to calculate physical fall/strike risks from timber dynamically encroaching into utility easement cylinders.
+- **Multi-Agent Orchestration (LangGraph & LLMs)**: Evolving the platform from a deterministic GIS pipeline into a true Agentic workflow. Future iterations will integrate LangGraph to autonomously query the highest-risk PostGIS threat polygons, cross-reference them with maintenance budgets or regulatory compliance documents via RAG, and generate prioritized, human-readable vegetation management reports for utility dispatch crews.

@@ -35,6 +35,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
   const [redFile, setRedFile] = useState(null);
   const [nirFile, setNirFile] = useState(null);
   const [canopyFile, setCanopyFile] = useState(null);
+  const [swirFile, setSwirFile] = useState(null);
   const [utilityFile, setUtilityFile] = useState(null);
   const [status, setStatus] = useState("idle");
   const [statusMsg, setStatusMsg] = useState("");
@@ -147,6 +148,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
     formData.append("nir_band", nirFile);
     formData.append("utility_lines", utilityFile);
     if (canopyFile) formData.append("canopy_height", canopyFile);
+    if (swirFile) formData.append("swir_band", swirFile);
 
     try {
       const response = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
@@ -168,7 +170,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
       } else {
         setStatus("success");
       }
-      setRedFile(null); setNirFile(null); setCanopyFile(null); setUtilityFile(null);
+      setRedFile(null); setNirFile(null); setCanopyFile(null); setSwirFile(null); setUtilityFile(null);
       formRef.current?.reset();
     } catch (err) {
       setStatus("error"); setStatusMsg(`Error: ${err.message}`);
@@ -266,6 +268,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                             <FileField id="red_band" label="Red Band (B04)" accept=".tif,.tiff,.geotiff,.jp2" file={redFile} onChange={(e) => setRedFile(e.target.files[0] ?? null)} />
                             <FileField id="nir_band" label="NIR Band (B08)" accept=".tif,.tiff,.geotiff,.jp2" file={nirFile} onChange={(e) => setNirFile(e.target.files[0] ?? null)} />
                             <FileField id="canopy" label="Canopy Height (Optional)" accept=".tif,.tiff,.geotiff" file={canopyFile} onChange={(e) => setCanopyFile(e.target.files[0] ?? null)} />
+                            <FileField id="swir_band" label="SWIR Band (B11/B12, 20m - Optional)" accept=".tif,.tiff,.geotiff,.jp2" file={swirFile} onChange={(e) => setSwirFile(e.target.files[0] ?? null)} />
                             <FileField id="utility" label="Infrastructure Network" accept=".zip,.geojson,.json,.shp" file={utilityFile} onChange={(e) => setUtilityFile(e.target.files[0] ?? null)} />
                             <button type="submit" disabled={runningJobId !== null} className="mt-2 w-full rounded-lg bg-indigo-600 py-3 text-sm font-bold text-white shadow-lg  hover:bg-indigo-700 hover:shadow-xl disabled:opacity-50 transition-all cursor-pointer">
                                 {runningJobId ? "Pipeline Processing..." : "Launch Analysis Sequence"}

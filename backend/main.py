@@ -80,13 +80,14 @@ query GetRunStatus($runId: ID!) {
 }
 """
 
-async def _trigger_dagster_job(red_path: str, nir_path: str, utility_path: str, canopy_path: str, project_id: str, run_id: str) -> dict:
+async def _trigger_dagster_job(red_path: str, nir_path: str, utility_path: str, canopy_path: str, swir_path: str, project_id: str, run_id: str) -> dict:
     run_config = {
         "ops": {
             "ingest_red_band": {"config": {"file_path": red_path}},
             "ingest_nir_band": {"config": {"file_path": nir_path}},
             "ingest_utility_lines": {"config": {"file_path": utility_path}},
             "ingest_canopy_height": {"config": {"file_path": canopy_path}},
+            "ingest_swir_band": {"config": {"file_path": swir_path}},
             "mask_and_calculate_risk": {"config": {"project_id": project_id, "run_id": run_id}},
         }
     }
@@ -209,6 +210,7 @@ async def upload_files(
     nir_band: UploadFile = File(...),
     utility_lines: UploadFile = File(...),
     canopy_height: Optional[UploadFile] = None,
+    swir_band: Optional[UploadFile] = None,
     db: Session = Depends(get_db)
 ):
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -238,6 +240,12 @@ async def upload_files(
         await _save_upload(canopy_height, canopy_dest)
         canopy_dest_str = str(canopy_dest)
 
+    swir_dest_str = ""
+    if swir_band:
+        swir_dest = proj_dir / swir_band.filename
+        await _save_upload(swir_band, swir_dest)
+        swir_dest_str = str(swir_dest)
+
     project.status = "RUNNING"
     current_run.status = "RUNNING"
     db.commit()
@@ -249,6 +257,7 @@ async def upload_files(
             nir_path=str(nir_dest),
             utility_path=str(util_dest),
             canopy_path=canopy_dest_str,
+            swir_path=swir_dest_str,
             project_id=project_id,
             run_id=str(current_run.id)
         )

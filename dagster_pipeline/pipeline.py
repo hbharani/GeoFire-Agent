@@ -81,6 +81,16 @@ def mask_and_calculate_risk(
     ndmi_low_stress_threshold = context.op_config["ndmi_low_stress_threshold"]
     context.log.info(f"Triggered pipeline for Project ID: {project_id} | Run ID: {run_id}")
 
+    # Validation: Ensure thresholds don't overlap
+    if ndmi_high_stress_threshold >= ndmi_low_stress_threshold:
+        context.log.warning(
+            f"Overlapping NDMI thresholds: high_stress({ndmi_high_stress_threshold}) >= low_stress({ndmi_low_stress_threshold}). "
+            "Skipping NDMI risk adjustment."
+        )
+        use_swir_internal = False
+    else:
+        use_swir_internal = True
+
     # 1. Align Coordinate Systems
     with rasterio.open(red_path) as src_red:
         raster_crs = src_red.crs
@@ -163,6 +173,8 @@ def mask_and_calculate_risk(
                 swir_masked, _ = mask(vrt_swir, shapes, crop=True)
                 swir_data = swir_masked[0].astype(float)
 
+    use_swir = use_swir and use_swir_internal
+
     # Calculate NDVI
     denominator = (nir_data + red_data)
     ndvi = np.zeros_like(red_data)
@@ -183,7 +195,8 @@ def mask_and_calculate_risk(
         high_stress = ndmi_valid & (ndmi < ndmi_high_stress_threshold) & (risk_array > 0)
         risk_array[high_stress] = np.minimum(risk_array[high_stress] + 1, 3)
         
-        low_stress = ndmi_valid & (ndmi > ndmi_low_stress_threshold) & (risk_array > 0)
+        # Mutually exclusive: only apply low stress if NOT already adjusted by high stress
+        low_stress = ndmi_valid & (ndmi > ndmi_low_stress_threshold) & (risk_array > 0) & ~high_stress
         risk_array[low_stress] = np.maximum(risk_array[low_stress] - 1, 1)
 
     if use_canopy and canopy_data is not None:

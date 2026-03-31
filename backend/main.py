@@ -218,7 +218,7 @@ async def upload_files(
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Initialize a new isolated AnalysisRun layer
-    current_run = AnalysisRun(project_id=project.id, name=f"Execution: {red_band.filename[:15]}")
+    current_run = AnalysisRun(project_id=project.id, name=f"Execution: {Path(red_band.filename).name[:15]}")
     db.add(current_run)
     db.commit()
     db.refresh(current_run)
@@ -226,9 +226,9 @@ async def upload_files(
     proj_dir = DATA_DIR / project_id / str(current_run.id)
     proj_dir.mkdir(parents=True, exist_ok=True)
     
-    red_dest = proj_dir / red_band.filename
-    nir_dest = proj_dir / nir_band.filename
-    util_dest = proj_dir / utility_lines.filename
+    red_dest = proj_dir / Path(red_band.filename).name
+    nir_dest = proj_dir / Path(nir_band.filename).name
+    util_dest = proj_dir / Path(utility_lines.filename).name
 
     await _save_upload(red_band, red_dest)
     await _save_upload(nir_band, nir_dest)
@@ -236,13 +236,13 @@ async def upload_files(
 
     canopy_dest_str = ""
     if canopy_height:
-        canopy_dest = proj_dir / canopy_height.filename
+        canopy_dest = proj_dir / Path(canopy_height.filename).name
         await _save_upload(canopy_height, canopy_dest)
         canopy_dest_str = str(canopy_dest)
 
     swir_dest_str = ""
     if swir_band:
-        swir_dest = proj_dir / swir_band.filename
+        swir_dest = proj_dir / Path(swir_band.filename).name
         await _save_upload(swir_band, swir_dest)
         swir_dest_str = str(swir_dest)
 

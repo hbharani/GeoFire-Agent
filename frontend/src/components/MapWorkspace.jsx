@@ -13,22 +13,41 @@ const BASE_MAPS = {
   satellite: { name: "Satellite Terrain", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" }
 };
 
-function MapEffects({ geoData, utilityData, fitTrigger }) {
+function MapEffects({ geoData, utilityData, fitTrigger, selectedRunId }) {
   const map = useMap();
+  const lastFitRunId = useRef(null);
+  const lastManualTrigger = useRef(fitTrigger);
+
   useEffect(() => {
-    if (!fitTrigger) return;
-    try {
-      let bounds = null;
-      if (geoData && geoData.features && geoData.features.length > 0) {
-        bounds = L.geoJSON(geoData).getBounds();
-      } else if (utilityData && utilityData.features && utilityData.features.length > 0) {
-        bounds = L.geoJSON(utilityData).getBounds();
+    // Only fit if data exists and:
+    // 1. Trigger changed (manual fit click)
+    // 2. OR this is a new runId that hasn't been fitted yet
+    const hasData = (geoData && geoData.features?.length > 0) || (utilityData && utilityData.features?.length > 0);
+    if (!hasData) return;
+
+    const isManual = fitTrigger !== lastManualTrigger.current;
+    const isNewRun = selectedRunId !== lastFitRunId.current;
+
+    if (isManual || isNewRun) {
+      try {
+        let bounds = null;
+        if (geoData && geoData.features?.length > 0) {
+          bounds = L.geoJSON(geoData).getBounds();
+        } else if (utilityData && utilityData.features?.length > 0) {
+          bounds = L.geoJSON(utilityData).getBounds();
+        }
+
+        if (bounds && bounds.isValid()) {
+          map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
+          lastFitRunId.current = selectedRunId;
+          lastManualTrigger.current = fitTrigger;
+        }
+      } catch (err) {
+        console.error("Map flyToBounds failed", err);
       }
-      if (bounds && bounds.isValid()) {
-        map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
-      }
-    } catch(e) { console.error("Could not fly to bounds", e) }
-  }, [fitTrigger, geoData, utilityData, map]);
+    }
+  }, [geoData, utilityData, fitTrigger, selectedRunId, map]);
+
   return null;
 }
 
@@ -160,14 +179,21 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
       }
       const data = await response.json();
       
+      if (data.dagster?.errors) {
+        throw new Error(data.dagster.errors[0]?.message ?? "Unknown GraphQL Error");
+      }
       if (data.dagster?.error) {
         throw new Error(data.dagster.error);
       }
-      if (data.dagster?.data?.launchRun?.message) {
-        throw new Error("Dagster API Error: " + data.dagster.data.launchRun.message);
+      const launchRun = data.dagster?.data?.launchRun;
+      if (!launchRun) {
+        throw new Error("Dagster API returned no run data.");
+      }
+      if (launchRun.message) {
+        throw new Error("Dagster API Error: " + launchRun.message);
       }
       
-      const runId = data.dagster?.data?.launchRun?.run?.runId;
+      const runId = launchRun.run?.runId;
       const historyRunId = data.run_id;
       
       if (runId) {
@@ -192,7 +218,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
       <MapContainer center={[33.68, -116.17]} zoom={11} zoomControl={false} className="absolute inset-0 z-0 bg-gray-900" style={{ width: "100%", height: "100%" }}>
         <TileLayer key={activeBaseMap} url={BASE_MAPS[activeBaseMap].url} maxZoom={19} />
         <ZoomControl position="bottomright" />
-        <MapEffects geoData={geoData} utilityData={utilityData} fitTrigger={fitTrigger} />
+        <MapEffects geoData={geoData} utilityData={utilityData} fitTrigger={fitTrigger} selectedRunId={selectedRunId} />
         
         {showLines && utilityData && (
           <GeoJSON 

@@ -13,9 +13,10 @@ const BASE_MAPS = {
   satellite: { name: "Satellite Terrain", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" }
 };
 
-function MapEffects({ geoData, utilityData }) {
+function MapEffects({ geoData, utilityData, fitTrigger }) {
   const map = useMap();
   useEffect(() => {
+    if (!fitTrigger) return;
     try {
       let bounds = null;
       if (geoData && geoData.features && geoData.features.length > 0) {
@@ -27,7 +28,7 @@ function MapEffects({ geoData, utilityData }) {
         map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
       }
     } catch(e) { console.error("Could not fly to bounds", e) }
-  }, [geoData, utilityData, map]);
+  }, [fitTrigger, geoData, utilityData, map]);
   return null;
 }
 
@@ -49,6 +50,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
   const [activeBaseMap, setActiveBaseMap] = useState("dark");
   const [showRisk, setShowRisk] = useState(true);
   const [showLines, setShowLines] = useState(true);
+  const [fitTrigger, setFitTrigger] = useState(0);
 
   // History Tracking
   const [runs, setRuns] = useState([]);
@@ -157,6 +159,14 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
         throw new Error(err.detail ?? "Upload failed");
       }
       const data = await response.json();
+      
+      if (data.dagster?.error) {
+        throw new Error(data.dagster.error);
+      }
+      if (data.dagster?.data?.launchRun?.message) {
+        throw new Error("Dagster API Error: " + data.dagster.data.launchRun.message);
+      }
+      
       const runId = data.dagster?.data?.launchRun?.run?.runId;
       const historyRunId = data.run_id;
       
@@ -182,7 +192,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
       <MapContainer center={[33.68, -116.17]} zoom={11} zoomControl={false} className="absolute inset-0 z-0 bg-gray-900" style={{ width: "100%", height: "100%" }}>
         <TileLayer key={activeBaseMap} url={BASE_MAPS[activeBaseMap].url} maxZoom={19} />
         <ZoomControl position="bottomright" />
-        <MapEffects geoData={geoData} utilityData={utilityData} />
+        <MapEffects geoData={geoData} utilityData={utilityData} fitTrigger={fitTrigger} />
         
         {showLines && utilityData && (
           <GeoJSON 
@@ -237,6 +247,13 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
           </button>
         </div>
         
+        <div className="w-px h-6 bg-gray-200 shadow-sm mr-4 ml-1"></div>
+        
+        <button onClick={() => setFitTrigger(f => f + 1)} className="px-4 py-1.5 rounded-full text-xs font-bold transition-all border shadow-sm flex items-center gap-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100">
+           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+           FIT TO DATA
+        </button>
+        
       </div>
 
       <div className="absolute top-4 left-4 z-[1000] w-[350px] max-w-[calc(100vw-2rem)] flex flex-col gap-3">
@@ -290,7 +307,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                                     <div key={r.id} onClick={() => setSelectedRunId(r.id)} className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedRunId === r.id ? 'bg-indigo-50 border-indigo-400 border-l-[6px] shadow-sm' : 'bg-white hover:bg-gray-50 border-gray-200'} flex flex-col`}>
                                         <div className="flex justify-between items-center mb-1">
                                             <span className={`text-xs font-bold truncate mr-2 flex-1 ${selectedRunId === r.id ? 'text-indigo-800' : 'text-gray-700'}`}>{r.name}</span>
-                                            <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded shadow-[0_1px_2px_rgba(0,0,0,0.05)] ${r.status === 'SUCCESS' ? 'bg-green-100 text-green-700 border border-green-200' : r.status === 'RUNNING' ? 'bg-orange-100 text-orange-700 animate-pulse border border-orange-200' : r.status === 'FAILED' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-gray-200 text-gray-600 border border-gray-300'}`}>{r.status}</span>
+                                            <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded shadow-[0_1px_2px_rgba(0,0,0,0.05)] ${(r.status === 'SUCCESS' || r.status === 'COMPLETED') ? 'bg-green-100 text-green-700 border border-green-200' : (r.status === 'RUNNING' || r.status === 'STARTED' || r.status === 'STARTING') ? 'bg-orange-100 text-orange-700 animate-pulse border border-orange-200' : (r.status === 'FAILED' || r.status === 'FAILURE' || r.status === 'ERROR') ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-gray-200 text-gray-600 border border-gray-300'}`}>{r.status}</span>
                                         </div>
                                         <div className="text-[10px] text-gray-500 font-mono tracking-tighter">
                                             {new Date(r.created_at).toLocaleDateString()} at {new Date(r.created_at).toLocaleTimeString()}

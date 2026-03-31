@@ -97,7 +97,7 @@ async def _trigger_dagster_job(red_path: str, nir_path: str, utility_path: str, 
         "repositoryLocationName": "pipeline.py",
         "repositoryName": "__repository__",
     }
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
             DAGSTER_URL, json={"query": LAUNCH_RUN_MUTATION, "variables": variables},
         )
@@ -148,7 +148,7 @@ async def get_project_runs(project_id: str, db: Session = Depends(get_db)):
 
 @app.get("/status/{run_id}", tags=["pipeline"])
 async def get_status(run_id: str, db_run_id: Optional[str] = None, db: Session = Depends(get_db)):
-    async with httpx.AsyncClient(timeout=5.0) as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             response = await client.post(DAGSTER_URL, json={"query": RUN_STATUS_QUERY, "variables": {"runId": run_id}})
             data = response.json()

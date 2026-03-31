@@ -80,13 +80,14 @@ query GetRunStatus($runId: ID!) {
 }
 """
 
-async def _trigger_dagster_job(red_path: str, nir_path: str, utility_path: str, canopy_path: str, project_id: str, run_id: str) -> dict:
+async def _trigger_dagster_job(red_path: str, nir_path: str, utility_path: str, canopy_path: str, swir_path: str, project_id: str, run_id: str) -> dict:
     run_config = {
         "ops": {
             "ingest_red_band": {"config": {"file_path": red_path}},
             "ingest_nir_band": {"config": {"file_path": nir_path}},
             "ingest_utility_lines": {"config": {"file_path": utility_path}},
             "ingest_canopy_height": {"config": {"file_path": canopy_path}},
+            "ingest_swir_band": {"config": {"file_path": swir_path}},
             "mask_and_calculate_risk": {"config": {"project_id": project_id, "run_id": run_id}},
         }
     }
@@ -96,7 +97,7 @@ async def _trigger_dagster_job(red_path: str, nir_path: str, utility_path: str, 
         "repositoryLocationName": "pipeline.py",
         "repositoryName": "__repository__",
     }
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         response = await client.post(
             DAGSTER_URL, json={"query": LAUNCH_RUN_MUTATION, "variables": variables},
         )
@@ -147,7 +148,7 @@ async def get_project_runs(project_id: str, db: Session = Depends(get_db)):
 
 @app.get("/status/{run_id}", tags=["pipeline"])
 async def get_status(run_id: str, db_run_id: Optional[str] = None, db: Session = Depends(get_db)):
-    async with httpx.AsyncClient(timeout=5.0) as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
         try:
             response = await client.post(DAGSTER_URL, json={"query": RUN_STATUS_QUERY, "variables": {"runId": run_id}})
             data = response.json()
@@ -209,6 +210,7 @@ async def upload_files(
     nir_band: UploadFile = File(...),
     utility_lines: UploadFile = File(...),
     canopy_height: Optional[UploadFile] = None,
+    swir_band: Optional[UploadFile] = None,
     db: Session = Depends(get_db)
 ):
     project = db.query(Project).filter(Project.id == project_id).first()
@@ -216,7 +218,7 @@ async def upload_files(
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Initialize a new isolated AnalysisRun layer
-    current_run = AnalysisRun(project_id=project.id, name=f"Execution: {red_band.filename[:15]}")
+    current_run = AnalysisRun(project_id=project.id, name=f"Execution: {Path(red_band.filename).name[:15]}")
     db.add(current_run)
     db.commit()
     db.refresh(current_run)
@@ -224,9 +226,9 @@ async def upload_files(
     proj_dir = DATA_DIR / project_id / str(current_run.id)
     proj_dir.mkdir(parents=True, exist_ok=True)
     
-    red_dest = proj_dir / red_band.filename
-    nir_dest = proj_dir / nir_band.filename
-    util_dest = proj_dir / utility_lines.filename
+    red_dest = proj_dir / Path(red_band.filename).name
+    nir_dest = proj_dir / Path(nir_band.filename).name
+    util_dest = proj_dir / Path(utility_lines.filename).name
 
     await _save_upload(red_band, red_dest)
     await _save_upload(nir_band, nir_dest)
@@ -234,9 +236,15 @@ async def upload_files(
 
     canopy_dest_str = ""
     if canopy_height:
-        canopy_dest = proj_dir / canopy_height.filename
+        canopy_dest = proj_dir / Path(canopy_height.filename).name
         await _save_upload(canopy_height, canopy_dest)
         canopy_dest_str = str(canopy_dest)
+
+    swir_dest_str = ""
+    if swir_band:
+        swir_dest = proj_dir / Path(swir_band.filename).name
+        await _save_upload(swir_band, swir_dest)
+        swir_dest_str = str(swir_dest)
 
     project.status = "RUNNING"
     current_run.status = "RUNNING"
@@ -249,6 +257,7 @@ async def upload_files(
             nir_path=str(nir_dest),
             utility_path=str(util_dest),
             canopy_path=canopy_dest_str,
+            swir_path=swir_dest_str,
             project_id=project_id,
             run_id=str(current_run.id)
         )

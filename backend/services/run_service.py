@@ -1,6 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
-from db.models import AnalysisRun, GeospatialAsset
+from db.models import AnalysisRun
 from schemas.run import AnalysisRunCreate
 
 class RunService:
@@ -19,19 +19,21 @@ class RunService:
         return result.scalar_one_or_none()
 
     @staticmethod
-    async def create_run(db: AsyncSession, run_data: AnalysisRunCreate):
+    async def create_run(db: AsyncSession, run_data: AnalysisRunCreate, commit: bool = True):
         db_run = AnalysisRun(project_id=run_data.project_id, name=run_data.name)
         db.add(db_run)
-        await db.commit()
-        await db.refresh(db_run)
+        if commit:
+            await db.commit()
+            await db.refresh(db_run)
         return db_run
 
     @staticmethod
-    async def update_run_status(db: AsyncSession, run_id: str, status: str):
+    async def update_run_status(db: AsyncSession, run_id: str, status: str, commit: bool = True):
         db_run = await RunService.get_run_by_id(db, run_id)
         if db_run:
             db_run.status = status
-            await db.commit()
+            if commit:
+                await db.commit()
         return db_run
 
     @staticmethod
@@ -85,5 +87,5 @@ class RunService:
             WHERE run_id = :rid AND asset_type = 'UTILITY_LINE';
             """
 
-        result = await db.execute(text(query), {"rid": run_id})
+        result = await db.execute(text(query), {"rid": run_id, "atype": asset_type})
         return result.scalar()

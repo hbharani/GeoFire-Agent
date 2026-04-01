@@ -1,9 +1,5 @@
 import os
 import httpx
-import logging
-from pathlib import Path
-
-logger = logging.getLogger("geofire.services.dagster")
 
 class DagsterService:
     DAGSTER_HOST = os.getenv("DAGSTER_HOST", "dagster")
@@ -68,5 +64,14 @@ class DagsterService:
                 DagsterService.DAGSTER_URL, 
                 json={"query": DagsterService.RUN_STATUS_QUERY, "variables": {"runId": run_id}}
             )
-            data = response.json()
-            return data.get("data", {}).get("pipelineRunOrError", {}).get("status", "UNKNOWN")
+            response.raise_for_status()
+            payload = response.json()
+            
+            if "errors" in payload:
+                raise Exception(f"Dagster GraphQL Error: {payload['errors']}")
+            
+            data = payload.get("data")
+            if not data or "pipelineRunOrError" not in data:
+                raise Exception(f"Malformed Dagster response: missing expected data for run {run_id}")
+
+            return data["pipelineRunOrError"].get("status", "UNKNOWN")

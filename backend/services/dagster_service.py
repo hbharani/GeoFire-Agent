@@ -1,11 +1,7 @@
-import os
 import httpx
+from core.config import settings
 
 class DagsterService:
-    DAGSTER_HOST = os.getenv("DAGSTER_HOST", "dagster")
-    DAGSTER_PORT = os.getenv("DAGSTER_PORT", "3000")
-    DAGSTER_URL = f"http://{DAGSTER_HOST}:{DAGSTER_PORT}/graphql"
-
     LAUNCH_RUN_MUTATION = """
     mutation LaunchRun($config: RunConfigData!, $jobName: String!, $repositoryLocationName: String!, $repositoryName: String!) {
       launchRun(
@@ -28,7 +24,10 @@ class DagsterService:
     RUN_STATUS_QUERY = """
     query GetRunStatus($runId: ID!) {
       pipelineRunOrError(runId: $runId) {
+        __typename
         ... on Run { status }
+        ... on RunNotFoundError { message }
+        ... on PythonError { message }
       }
     }
     """
@@ -52,7 +51,7 @@ class DagsterService:
         }
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
-                DagsterService.DAGSTER_URL, json={"query": DagsterService.LAUNCH_RUN_MUTATION, "variables": variables},
+                settings.DAGSTER_URL, json={"query": DagsterService.LAUNCH_RUN_MUTATION, "variables": variables},
             )
             response.raise_for_status()
             return response.json()
@@ -61,7 +60,7 @@ class DagsterService:
     async def get_run_status(run_id: str) -> str:
         async with httpx.AsyncClient(timeout=5.0) as client:
             response = await client.post(
-                DagsterService.DAGSTER_URL, 
+                settings.DAGSTER_URL, 
                 json={"query": DagsterService.RUN_STATUS_QUERY, "variables": {"runId": run_id}}
             )
             response.raise_for_status()
@@ -74,4 +73,14 @@ class DagsterService:
             if not data or "pipelineRunOrError" not in data:
                 raise Exception(f"Malformed Dagster response: missing expected data for run {run_id}")
 
-            return data["pipelineRunOrError"].get("status", "UNKNOWN")
+            result = data["pipelineRunOrError"]
+            typename = result.get("__typename")
+
+            if typename == "Run":
+                return result.get("status", "UNKNOWN")
+            elif typename == "RunNotFoundError":
+                raise Exception(f"Dagster Run Not Found: {result.get('message')}")
+            elif typename == "PythonError":
+                raise Exception(f"Dagster Python Error: {result.get('message')}")
+            else:
+                raise Exception(f"Unexpected Dagster response type: {typename}")

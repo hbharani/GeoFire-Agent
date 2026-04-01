@@ -1,25 +1,32 @@
-import uuid
+import shutil
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 from db.session import get_db
 from services.project_service import ProjectService
 from services.run_service import RunService
 from services.dagster_service import DagsterService
 from schemas.run import AnalysisRunCreate
+from core.config import settings
+from uuid import UUID
 
 router = APIRouter(tags=["pipeline"])
 
-DATA_DIR = Path(os.getenv("DATA_DIR", "/data"))
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-
 async def _save_upload(upload: UploadFile, destination: Path) -> None:
-    contents = await upload.read()
-    destination.write_bytes(contents)
+    """
+    Save an uploaded file to a destination path using non-blocking streaming.
+    Using run_in_threadpool with shutil.copyfileobj for efficient, off-thread I/O.
+    """
+    def _save():
+        with destination.open("wb") as buffer:
+            shutil.copyfileobj(upload.file, buffer)
+            
+    await run_in_threadpool(_save)
 
 @router.get("/status/{run_id}")
-async def get_status(run_id: str, db_run_id: Optional[str] = None, db: AsyncSession = Depends(get_db)):
+async def get_status(run_id: str, db_run_id: Optional[UUID] = None, db: AsyncSession = Depends(get_db)):
     try:
         status = await DagsterService.get_run_status(run_id)
         
@@ -32,19 +39,13 @@ async def get_status(run_id: str, db_run_id: Optional[str] = None, db: AsyncSess
 
 @router.post("/upload")
 async def upload_files(
-    project_id: str = Form(...),
+    project_id: UUID = Form(...),
     red_band: UploadFile = File(...),
     nir_band: UploadFile = File(...),
     utility_lines: UploadFile = File(...),
     canopy_height: Optional[UploadFile] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    # Security: Validate project_id as UUID
-    try:
-        uuid.UUID(project_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid project_id format. Must be a UUID.")
-
     project = await ProjectService.get_project_by_id(db, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -64,13 +65,14 @@ async def upload_files(
     # Ensure the run is flushed so that current_run.id is populated before use
     await db.flush()
 
-    proj_dir = DATA_DIR / project_id / str(current_run.id)
+    proj_dir = settings.DATA_DIR / str(project_id) / str(current_run.id)
     proj_dir.mkdir(parents=True, exist_ok=True)
     
     red_dest = proj_dir / red_filename
     nir_dest = proj_dir / nir_filename
     util_dest = proj_dir / util_filename
 
+    # Stream uploads to disk asynchronously
     await _save_upload(red_band, red_dest)
     await _save_upload(nir_band, nir_dest)
     await _save_upload(utility_lines, util_dest)
@@ -84,7 +86,7 @@ async def upload_files(
 
     # Update statuses in a single commit block
     project.status = "RUNNING"
-    await RunService.update_run_status(db, str(current_run.id), "RUNNING", commit=False)
+    await RunService.update_run_status(db, current_run.id, "RUNNING", commit=False)
 
     dagster_result: dict = {}
     try:
@@ -93,14 +95,14 @@ async def upload_files(
             nir_path=str(nir_dest),
             utility_path=str(util_dest),
             canopy_path=canopy_dest_str,
-            project_id=project_id,
+            project_id=str(project_id),
             run_id=str(current_run.id)
         )
     except Exception as exc:
         dagster_result = {"error": str(exc)}
         # Security/Consistency: Revert statuses on failure
         project.status = "FAILED"
-        await RunService.update_run_status(db, str(current_run.id), "FAILED", commit=False)
+        await RunService.update_run_status(db, current_run.id, "FAILED", commit=False)
         await db.commit()
 
     return {"message": "Files received", "dagster": dagster_result, "project_id": project_id, "run_id": str(current_run.id)}

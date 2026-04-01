@@ -14,11 +14,11 @@ async def get_project_runs(project_id: UUID, db: AsyncSession = Depends(get_db))
     return await RunService.get_project_runs(db, project_id)
 
 @router.get("/runs/{run_id}/results")
-async def get_run_results(run_id: str, db: AsyncSession = Depends(get_db)):
+async def get_run_results(run_id: UUID, db: AsyncSession = Depends(get_db)):
     result = await RunService.get_run_results_geojson(db, run_id, 'RISK_POLYGON')
     return JSONResponse(content=result)
 
 @router.get("/runs/{run_id}/utility-lines")
-async def get_run_utility_lines(run_id: str, db: AsyncSession = Depends(get_db)):
+async def get_run_utility_lines(run_id: UUID, db: AsyncSession = Depends(get_db)):
     result = await RunService.get_run_results_geojson(db, run_id, 'UTILITY_LINE')
     return JSONResponse(content=result)

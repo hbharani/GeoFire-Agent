@@ -2,10 +2,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 from db.models import AnalysisRun
 from schemas.run import AnalysisRunCreate
+from uuid import UUID
 
 class RunService:
     @staticmethod
-    async def get_project_runs(db: AsyncSession, project_id: str):
+    async def get_project_runs(db: AsyncSession, project_id: UUID):
         result = await db.execute(
             select(AnalysisRun)
             .filter(AnalysisRun.project_id == project_id)
@@ -14,7 +15,7 @@ class RunService:
         return result.scalars().all()
 
     @staticmethod
-    async def get_run_by_id(db: AsyncSession, run_id: str):
+    async def get_run_by_id(db: AsyncSession, run_id: UUID):
         result = await db.execute(select(AnalysisRun).filter(AnalysisRun.id == run_id))
         return result.scalar_one_or_none()
 
@@ -31,7 +32,7 @@ class RunService:
         return db_run
 
     @staticmethod
-    async def update_run_status(db: AsyncSession, run_id: str, status: str, commit: bool = True):
+    async def update_run_status(db: AsyncSession, run_id: UUID, status: str, commit: bool = True):
         db_run = await RunService.get_run_by_id(db, run_id)
         if db_run:
             db_run.status = status
@@ -40,25 +41,7 @@ class RunService:
         return db_run
 
     @staticmethod
-    async def get_run_results_geojson(db: AsyncSession, run_id: str, asset_type: str):
-        query = """
-        SELECT json_build_object(
-            'type', 'FeatureCollection',
-            'features', COALESCE(json_agg(
-                json_build_object(
-                    'type',       'Feature',
-                    'geometry',   ST_AsGeoJSON(geometry)::json,
-                    'properties', json_build_object('risk_level', risk_level, 'Name', 'Utility Line')
-                )
-            ), '[]'::json)
-        )
-        FROM geospatial_assets
-        WHERE run_id = :rid AND asset_type = :atype;
-        """
-        # Note: Added 'Name' to properties to handle both types with one query if needed, 
-        # but the original code had slightly different properties per type.
-        # I'll keep it flexible.
-        
+    async def get_run_results_geojson(db: AsyncSession, run_id: UUID, asset_type: str):
         if asset_type == 'RISK_POLYGON':
              query = """
             SELECT json_build_object(
@@ -89,6 +72,8 @@ class RunService:
             FROM geospatial_assets
             WHERE run_id = :rid AND asset_type = 'UTILITY_LINE';
             """
+        else:
+            raise ValueError(f"Unsupported asset type: {asset_type}")
 
-        result = await db.execute(text(query), {"rid": run_id, "atype": asset_type})
+        result = await db.execute(text(query), {"rid": run_id})
         return result.scalar()

@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from db.models import Project
 from schemas.project import ProjectCreate
+from uuid import UUID
 
 class ProjectService:
     @staticmethod
@@ -10,7 +11,7 @@ class ProjectService:
         return result.scalars().all()
 
     @staticmethod
-    async def get_project_by_id(db: AsyncSession, project_id: str):
+    async def get_project_by_id(db: AsyncSession, project_id: UUID):
         result = await db.execute(select(Project).filter(Project.id == project_id))
         return result.scalar_one_or_none()
 
@@ -24,7 +25,7 @@ class ProjectService:
         return db_project
 
     @staticmethod
-    async def update_project(db: AsyncSession, project_id: str, project_data: ProjectCreate, commit: bool = True):
+    async def update_project(db: AsyncSession, project_id: UUID, project_data: ProjectCreate, commit: bool = True):
         db_project = await ProjectService.get_project_by_id(db, project_id)
         if not db_project:
             return None
@@ -36,7 +37,7 @@ class ProjectService:
         return db_project
 
     @staticmethod
-    async def delete_project(db: AsyncSession, project_id: str, commit: bool = True):
+    async def delete_project(db: AsyncSession, project_id: UUID, commit: bool = True):
         db_project = await ProjectService.get_project_by_id(db, project_id)
         if not db_project:
             return False

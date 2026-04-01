@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     DATA_DIR: Path = Path("/data")
     
     # Database Settings
-    DATABASE_URL: str = "postgresql://geofire:geofire_secret@db:5432/geofire"
+    DATABASE_URL: str = "postgresql+asyncpg://geofire:geofire_secret@db:5432/geofire"
     
     # Dagster Settings
     DAGSTER_HOST: str = "dagster"

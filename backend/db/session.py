@@ -8,7 +8,9 @@ try:
     url = make_url(settings.DATABASE_URL)
     if url.drivername.startswith("postgresql") and url.drivername != "postgresql+asyncpg":
         url = url.set(drivername="postgresql+asyncpg")
-    ASYNC_DATABASE_URL = str(url)
+    # Note: Passing the URL object directly to create_async_engine to preserve 
+    # the password, as str(url) in SQLAlchemy 2.0 masks it (e.g., ***).
+    ASYNC_DATABASE_URL = url
 except Exception as exc:
     # Fail fast with a clear error if the DATABASE_URL cannot be parsed or normalized
     raise ValueError(f"Invalid DATABASE_URL configuration: {settings.DATABASE_URL!r}") from exc

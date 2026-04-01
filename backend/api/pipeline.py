@@ -61,6 +61,8 @@ async def upload_files(
         AnalysisRunCreate(project_id=project.id, name=f"Execution: {red_filename[:15]}"),
         commit=False
     )
+    # Ensure the run is flushed so that current_run.id is populated before use
+    await db.flush()
 
     proj_dir = DATA_DIR / project_id / str(current_run.id)
     proj_dir.mkdir(parents=True, exist_ok=True)
@@ -83,7 +85,6 @@ async def upload_files(
     # Update statuses in a single commit block
     project.status = "RUNNING"
     await RunService.update_run_status(db, str(current_run.id), "RUNNING", commit=False)
-    await db.commit()
 
     dagster_result: dict = {}
     try:

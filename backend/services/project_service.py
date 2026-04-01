@@ -40,7 +40,7 @@ class ProjectService:
         db_project = await ProjectService.get_project_by_id(db, project_id)
         if not db_project:
             return False
-        await db.delete(db_project)
+        db.delete(db_project)
         if commit:
             await db.commit()
         return True

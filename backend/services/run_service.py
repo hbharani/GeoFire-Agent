@@ -25,6 +25,9 @@ class RunService:
         if commit:
             await db.commit()
             await db.refresh(db_run)
+        else:
+            # Ensure the run has an ID without forcing a commit
+            await db.flush()
         return db_run
 
     @staticmethod

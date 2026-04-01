@@ -5,11 +5,12 @@ from db.session import get_db
 from services.run_service import RunService
 from schemas.run import AnalysisRun
 from typing import List
+from uuid import UUID
 
 router = APIRouter(tags=["runs"])
 
 @router.get("/projects/{project_id}/runs", response_model=List[AnalysisRun])
-async def get_project_runs(project_id: str, db: AsyncSession = Depends(get_db)):
+async def get_project_runs(project_id: UUID, db: AsyncSession = Depends(get_db)):
     return await RunService.get_project_runs(db, project_id)
 
 @router.get("/runs/{run_id}/results")

@@ -13,21 +13,41 @@ const BASE_MAPS = {
   satellite: { name: "Satellite Terrain", url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" }
 };
 
-function MapEffects({ geoData, utilityData }) {
+function MapEffects({ geoData, utilityData, fitTrigger, selectedRunId }) {
   const map = useMap();
+  const lastFitRunId = useRef(null);
+  const lastManualTrigger = useRef(fitTrigger);
+
   useEffect(() => {
-    try {
-      let bounds = null;
-      if (geoData && geoData.features && geoData.features.length > 0) {
-        bounds = L.geoJSON(geoData).getBounds();
-      } else if (utilityData && utilityData.features && utilityData.features.length > 0) {
-        bounds = L.geoJSON(utilityData).getBounds();
+    // Only fit if data exists and:
+    // 1. Trigger changed (manual fit click)
+    // 2. OR this is a new runId that hasn't been fitted yet
+    const hasData = (geoData && geoData.features?.length > 0) || (utilityData && utilityData.features?.length > 0);
+    if (!hasData) return;
+
+    const isManual = fitTrigger !== lastManualTrigger.current;
+    const isNewRun = selectedRunId !== lastFitRunId.current;
+
+    if (isManual || isNewRun) {
+      try {
+        let bounds = null;
+        if (geoData && geoData.features?.length > 0) {
+          bounds = L.geoJSON(geoData).getBounds();
+        } else if (utilityData && utilityData.features?.length > 0) {
+          bounds = L.geoJSON(utilityData).getBounds();
+        }
+
+        if (bounds && bounds.isValid()) {
+          map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
+          lastFitRunId.current = selectedRunId;
+          lastManualTrigger.current = fitTrigger;
+        }
+      } catch (err) {
+        console.error("Map flyToBounds failed", err);
       }
-      if (bounds && bounds.isValid()) {
-        map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
-      }
-    } catch(e) { console.error("Could not fly to bounds", e) }
-  }, [geoData, utilityData, map]);
+    }
+  }, [geoData, utilityData, fitTrigger, selectedRunId, map]);
+
   return null;
 }
 
@@ -35,6 +55,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
   const [redFile, setRedFile] = useState(null);
   const [nirFile, setNirFile] = useState(null);
   const [canopyFile, setCanopyFile] = useState(null);
+  const [swirFile, setSwirFile] = useState(null);
   const [utilityFile, setUtilityFile] = useState(null);
   const [status, setStatus] = useState("idle");
   const [statusMsg, setStatusMsg] = useState("");
@@ -48,6 +69,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
   const [activeBaseMap, setActiveBaseMap] = useState("dark");
   const [showRisk, setShowRisk] = useState(true);
   const [showLines, setShowLines] = useState(true);
+  const [fitTrigger, setFitTrigger] = useState(0);
 
   // History Tracking
   const [runs, setRuns] = useState([]);
@@ -147,6 +169,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
     formData.append("nir_band", nirFile);
     formData.append("utility_lines", utilityFile);
     if (canopyFile) formData.append("canopy_height", canopyFile);
+    if (swirFile) formData.append("swir_band", swirFile);
 
     try {
       const response = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
@@ -155,7 +178,22 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
         throw new Error(err.detail ?? "Upload failed");
       }
       const data = await response.json();
-      const runId = data.dagster?.data?.launchRun?.run?.runId;
+      
+      if (data.dagster?.errors) {
+        throw new Error(data.dagster.errors[0]?.message ?? "Unknown GraphQL Error");
+      }
+      if (data.dagster?.error) {
+        throw new Error(data.dagster.error);
+      }
+      const launchRun = data.dagster?.data?.launchRun;
+      if (!launchRun) {
+        throw new Error("Dagster API returned no run data.");
+      }
+      if (launchRun.message) {
+        throw new Error("Dagster API Error: " + launchRun.message);
+      }
+      
+      const runId = launchRun.run?.runId;
       const historyRunId = data.run_id;
       
       if (runId) {
@@ -168,7 +206,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
       } else {
         setStatus("success");
       }
-      setRedFile(null); setNirFile(null); setCanopyFile(null); setUtilityFile(null);
+      setRedFile(null); setNirFile(null); setCanopyFile(null); setSwirFile(null); setUtilityFile(null);
       formRef.current?.reset();
     } catch (err) {
       setStatus("error"); setStatusMsg(`Error: ${err.message}`);
@@ -180,7 +218,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
       <MapContainer center={[33.68, -116.17]} zoom={11} zoomControl={false} className="absolute inset-0 z-0 bg-gray-900" style={{ width: "100%", height: "100%" }}>
         <TileLayer key={activeBaseMap} url={BASE_MAPS[activeBaseMap].url} maxZoom={19} />
         <ZoomControl position="bottomright" />
-        <MapEffects geoData={geoData} utilityData={utilityData} />
+        <MapEffects geoData={geoData} utilityData={utilityData} fitTrigger={fitTrigger} selectedRunId={selectedRunId} />
         
         {showLines && utilityData && (
           <GeoJSON 
@@ -235,6 +273,13 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
           </button>
         </div>
         
+        <div className="w-px h-6 bg-gray-200 shadow-sm mr-4 ml-1"></div>
+        
+        <button onClick={() => setFitTrigger(f => f + 1)} className="px-4 py-1.5 rounded-full text-xs font-bold transition-all border shadow-sm flex items-center gap-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100">
+           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+           FIT TO DATA
+        </button>
+        
       </div>
 
       <div className="absolute top-4 left-4 z-[1000] w-[350px] max-w-[calc(100vw-2rem)] flex flex-col gap-3">
@@ -266,6 +311,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                             <FileField id="red_band" label="Red Band (B04)" accept=".tif,.tiff,.geotiff,.jp2" file={redFile} onChange={(e) => setRedFile(e.target.files[0] ?? null)} />
                             <FileField id="nir_band" label="NIR Band (B08)" accept=".tif,.tiff,.geotiff,.jp2" file={nirFile} onChange={(e) => setNirFile(e.target.files[0] ?? null)} />
                             <FileField id="canopy" label="Canopy Height (Optional)" accept=".tif,.tiff,.geotiff" file={canopyFile} onChange={(e) => setCanopyFile(e.target.files[0] ?? null)} />
+                            <FileField id="swir_band" label="SWIR Band (B11/B12, 20m - Optional)" accept=".tif,.tiff,.geotiff,.jp2" file={swirFile} onChange={(e) => setSwirFile(e.target.files[0] ?? null)} />
                             <FileField id="utility" label="Infrastructure Network" accept=".zip,.geojson,.json,.shp" file={utilityFile} onChange={(e) => setUtilityFile(e.target.files[0] ?? null)} />
                             <button type="submit" disabled={runningJobId !== null} className="mt-2 w-full rounded-lg bg-indigo-600 py-3 text-sm font-bold text-white shadow-lg  hover:bg-indigo-700 hover:shadow-xl disabled:opacity-50 transition-all cursor-pointer">
                                 {runningJobId ? "Pipeline Processing..." : "Launch Analysis Sequence"}
@@ -287,7 +333,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                                     <div key={r.id} onClick={() => setSelectedRunId(r.id)} className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedRunId === r.id ? 'bg-indigo-50 border-indigo-400 border-l-[6px] shadow-sm' : 'bg-white hover:bg-gray-50 border-gray-200'} flex flex-col`}>
                                         <div className="flex justify-between items-center mb-1">
                                             <span className={`text-xs font-bold truncate mr-2 flex-1 ${selectedRunId === r.id ? 'text-indigo-800' : 'text-gray-700'}`}>{r.name}</span>
-                                            <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded shadow-[0_1px_2px_rgba(0,0,0,0.05)] ${r.status === 'SUCCESS' ? 'bg-green-100 text-green-700 border border-green-200' : r.status === 'RUNNING' ? 'bg-orange-100 text-orange-700 animate-pulse border border-orange-200' : r.status === 'FAILED' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-gray-200 text-gray-600 border border-gray-300'}`}>{r.status}</span>
+                                            <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded shadow-[0_1px_2px_rgba(0,0,0,0.05)] ${(r.status === 'SUCCESS' || r.status === 'COMPLETED') ? 'bg-green-100 text-green-700 border border-green-200' : (r.status === 'RUNNING' || r.status === 'STARTED' || r.status === 'STARTING') ? 'bg-orange-100 text-orange-700 animate-pulse border border-orange-200' : (r.status === 'FAILED' || r.status === 'FAILURE' || r.status === 'ERROR') ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-gray-200 text-gray-600 border border-gray-300'}`}>{r.status}</span>
                                         </div>
                                         <div className="text-[10px] text-gray-500 font-mono tracking-tighter">
                                             {new Date(r.created_at).toLocaleDateString()} at {new Date(r.created_at).toLocaleTimeString()}

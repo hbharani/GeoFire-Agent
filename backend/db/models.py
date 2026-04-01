@@ -3,7 +3,7 @@ from sqlalchemy import Column, String, DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 from geoalchemy2 import Geometry
-from database import Base
+from .session import Base
 
 class Project(Base):
     __tablename__ = "projects"

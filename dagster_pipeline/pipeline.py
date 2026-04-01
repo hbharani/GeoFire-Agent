@@ -49,16 +49,21 @@ def ingest_nir_band(context: OpExecutionContext) -> str: return context.op_confi
 @op(config_schema={"file_path": Field(String, default_value="", is_required=False)})
 def ingest_canopy_height(context: OpExecutionContext) -> str: return context.op_config.get("file_path", "")
 
+@op(config_schema={"file_path": Field(String, default_value="", is_required=False)})
+def ingest_swir_band(context: OpExecutionContext) -> str: return context.op_config.get("file_path", "")
+
 @op(config_schema={"file_path": Field(String)})
 def ingest_utility_lines(context: OpExecutionContext) -> str: return context.op_config["file_path"]
 
 @op(
     config_schema={
         "project_id": Field(String, is_required=True, description="UUID of the active project"),
-        "run_id": Field(String, is_required=True, description="UUID of the specific run attempt")
+        "run_id": Field(String, is_required=True, description="UUID of the specific run attempt"),
+        "ndmi_high_stress_threshold": Field(float, default_value=0.0, description="NDMI values below this increase fire risk"),
+        "ndmi_low_stress_threshold": Field(float, default_value=0.2, description="NDMI values above this decrease fire risk")
     },
     ins={
-        "utility_lines_path": In(), "red_path": In(), "nir_path": In(), "canopy_path": In(),
+        "utility_lines_path": In(), "red_path": In(), "nir_path": In(), "canopy_path": In(), "swir_path": In(),
     },
     out=Out()
 )
@@ -68,10 +73,23 @@ def mask_and_calculate_risk(
     red_path: str,
     nir_path: str,
     canopy_path: str,
+    swir_path: str,
 ) -> str:
     project_id = context.op_config["project_id"]
     run_id = context.op_config["run_id"]
+    ndmi_high_stress_threshold = context.op_config["ndmi_high_stress_threshold"]
+    ndmi_low_stress_threshold = context.op_config["ndmi_low_stress_threshold"]
     context.log.info(f"Triggered pipeline for Project ID: {project_id} | Run ID: {run_id}")
+
+    # Validation: Ensure thresholds don't overlap
+    if ndmi_high_stress_threshold >= ndmi_low_stress_threshold:
+        context.log.warning(
+            f"Overlapping NDMI thresholds: high_stress({ndmi_high_stress_threshold}) >= low_stress({ndmi_low_stress_threshold}). "
+            "Skipping NDMI risk adjustment."
+        )
+        use_swir_internal = False
+    else:
+        use_swir_internal = True
 
     # 1. Align Coordinate Systems
     with rasterio.open(red_path) as src_red:
@@ -146,6 +164,17 @@ def mask_and_calculate_risk(
                 canopy_masked, _ = mask(vrt, shapes, crop=True)
                 canopy_data = canopy_masked[0].astype(float)
 
+    use_swir = bool(swir_path and Path(swir_path).exists())
+    swir_data = None
+    if use_swir:
+        from rasterio.vrt import WarpedVRT
+        with rasterio.open(swir_path) as src_swir:
+            with WarpedVRT(src_swir, crs=raster_crs, transform=red_transform, height=red_height, width=red_width) as vrt_swir:
+                swir_masked, _ = mask(vrt_swir, shapes, crop=True)
+                swir_data = swir_masked[0].astype(float)
+
+    use_swir = use_swir and use_swir_internal
+
     # Calculate NDVI
     denominator = (nir_data + red_data)
     ndvi = np.zeros_like(red_data)
@@ -156,6 +185,19 @@ def mask_and_calculate_risk(
     risk_array[(ndvi > 0.3) & (ndvi <= 0.5)] = 1
     risk_array[(ndvi > 0.5) & (ndvi <= 0.7)] = 2
     risk_array[ndvi > 0.7] = 3
+
+    if use_swir and swir_data is not None:
+        ndmi_denominator = (nir_data + swir_data)
+        ndmi = np.zeros_like(nir_data)
+        ndmi_valid = ndmi_denominator != 0
+        ndmi[ndmi_valid] = (nir_data[ndmi_valid] - swir_data[ndmi_valid]) / ndmi_denominator[ndmi_valid]
+        
+        high_stress = ndmi_valid & (ndmi < ndmi_high_stress_threshold) & (risk_array > 0)
+        risk_array[high_stress] = np.minimum(risk_array[high_stress] + 1, 3)
+        
+        # Mutually exclusive: only apply low stress if NOT already adjusted by high stress
+        low_stress = ndmi_valid & (ndmi > ndmi_low_stress_threshold) & (risk_array > 0) & ~high_stress
+        risk_array[low_stress] = np.maximum(risk_array[low_stress] - 1, 1)
 
     if use_canopy and canopy_data is not None:
         risk_array[canopy_data < 3.0] = 0
@@ -190,11 +232,13 @@ def fire_risk_pipeline():
     nir = ingest_nir_band()
     utility = ingest_utility_lines()
     canopy = ingest_canopy_height()
+    swir = ingest_swir_band()
     mask_and_calculate_risk(
         utility_lines_path=utility,
         red_path=red,
         nir_path=nir,
-        canopy_path=canopy
+        canopy_path=canopy,
+        swir_path=swir
     )
 
 defs = Definitions(jobs=[fire_risk_pipeline])

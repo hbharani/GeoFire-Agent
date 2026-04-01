@@ -84,9 +84,11 @@ async def upload_files(
         await _save_upload(canopy_height, canopy_dest)
         canopy_dest_str = str(canopy_dest)
 
-    # Update statuses in a single commit block
+    # Update statuses in a single commit block.
+    # Note: We MUST commit here so that the external Dagster process can see the run_id.
     project.status = "RUNNING"
     await RunService.update_run_status(db, current_run.id, "RUNNING", commit=False)
+    await db.commit()
 
     dagster_result: dict = {}
     try:

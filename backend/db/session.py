@@ -9,9 +9,9 @@ try:
     if url.drivername.startswith("postgresql") and url.drivername != "postgresql+asyncpg":
         url = url.set(drivername="postgresql+asyncpg")
     ASYNC_DATABASE_URL = str(url)
-except Exception:
-    # Fallback to the raw DATABASE_URL if parsing fails
-    ASYNC_DATABASE_URL = settings.DATABASE_URL
+except Exception as exc:
+    # Fail fast with a clear error if the DATABASE_URL cannot be parsed or normalized
+    raise ValueError(f"Invalid DATABASE_URL configuration: {settings.DATABASE_URL!r}") from exc
 
 engine = create_async_engine(ASYNC_DATABASE_URL, echo=False)
 AsyncSessionLocal = async_sessionmaker(

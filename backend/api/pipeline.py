@@ -62,8 +62,6 @@ async def upload_files(
         AnalysisRunCreate(project_id=project.id, name=f"Execution: {red_filename[:15]}"),
         commit=False
     )
-    # Ensure the run is flushed so that current_run.id is populated before use
-    await db.flush()
 
     proj_dir = settings.DATA_DIR / str(project_id) / str(current_run.id)
     proj_dir.mkdir(parents=True, exist_ok=True)
@@ -105,6 +103,9 @@ async def upload_files(
         # Security/Consistency: Revert statuses on failure
         project.status = "FAILED"
         await RunService.update_run_status(db, current_run.id, "FAILED", commit=False)
+        await db.commit()
+    else:
+        # Commit the successful creation of the run and RUNNING statuses
         await db.commit()
 
     return {"message": "Files received", "dagster": dagster_result, "project_id": project_id, "run_id": str(current_run.id)}

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { MapContainer, TileLayer, ZoomControl, GeoJSON, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, ZoomControl, GeoJSON, Marker, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 
 import FileField from "./ui/FileField";
@@ -28,7 +28,7 @@ function MapEffects({ geoData, utilityData, fitTrigger, selectedRunId }) {
     const isManual = fitTrigger !== lastManualTrigger.current;
     const isNewRun = selectedRunId !== lastFitRunId.current;
 
-    if (isManual || isNewRun) {
+    if (isManual) {
       try {
         let bounds = null;
         if (geoData && geoData.features?.length > 0) {
@@ -51,6 +51,223 @@ function MapEffects({ geoData, utilityData, fitTrigger, selectedRunId }) {
   return null;
 }
 
+/* 
+  NUCLEAR GLASS RESET - Final kill for Leaflet white boxes 
+*/
+const GlobalPopupStyles = `
+  .leaflet-popup.glass-popup-nuclear .leaflet-popup-content-wrapper,
+  .leaflet-popup.glass-popup-nuclear .leaflet-popup-tip {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .leaflet-popup.glass-popup-nuclear .leaflet-popup-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 260px !important;
+    height: 320px !important;
+    background: transparent !important;
+  }
+  .leaflet-popup.glass-popup-nuclear .leaflet-popup-close-button {
+    display: none !important;
+  }
+  
+  /* Flip Card 3D Perfect Logic */
+  .risk-card {
+    perspective: 2000px;
+    width: 260px;
+    height: 320px;
+    position: relative;
+    background: transparent !important;
+  }
+  .risk-card-inner {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform-style: preserve-3d;
+  }
+  .risk-card.is-flipped .risk-card-inner {
+    transform: rotateY(180deg);
+  }
+  .card-front, .card-back {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    border-radius: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .card-back {
+    transform: rotateY(180deg);
+  }
+`;
+
+function WeatherLayer({ weatherData }) {
+  const [zoom, setZoom] = useState(11);
+  const map = useMapEvents({
+    zoomend: () => setZoom(map.getZoom())
+  });
+
+  if (!weatherData || !Array.isArray(weatherData)) return null;
+
+  const showDiamond = zoom >= 11;
+  const offset = 0.04; // ~5km
+
+  return (
+    <>
+      <style>{GlobalPopupStyles}</style>
+      <style>{`
+        @keyframes windy-wave {
+          0% { transform: skewY(-5deg) scaleX(1); }
+          100% { transform: skewY(15deg) scaleX(0.85); }
+        }
+        @keyframes windy-trail {
+          0% { transform: translateX(0); opacity: 0; }
+          50% { opacity: 0.6; }
+          100% { transform: translateX(20px); opacity: 0; }
+        }
+        .windy-flag .flag-wave {
+          animation: windy-wave 0.8s ease-in-out infinite alternate;
+          transform-origin: left center;
+        }
+        .wind-trails .trail {
+          position: absolute;
+          background: white;
+          height: 1px;
+          width: 15px;
+          animation: windy-trail 1s linear infinite;
+        }
+      `}</style>
+      
+      {weatherData.map((w, idx) => {
+        if (!w.red_flag) return null;
+        
+        const basePoints = [{ lat: w.latitude, lon: w.longitude }];
+        if (showDiamond) {
+          basePoints.push({ lat: w.latitude + offset, lon: w.longitude });
+          basePoints.push({ lat: w.latitude - offset, lon: w.longitude });
+          basePoints.push({ lat: w.latitude, lon: w.longitude + offset });
+          basePoints.push({ lat: w.latitude, lon: w.longitude - offset });
+        }
+
+        return basePoints.map((p, pIdx) => {
+          const rotation = (w.wind_direction + 90) % 360;
+          const getDir = (d) => ['N','NE','E','SE','S','SW','W','NW'][Math.round(d/45)%8];
+          const icon = L.divIcon({
+            className: 'weather-icon',
+            html: `
+              <div class="windy-container" style="transform: rotate(${rotation}deg); transform-origin: 5px 35px; position: relative; width: 40px; height: 40px;">
+                <svg class="windy-flag" width="40" height="40" viewBox="0 0 40 40" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">
+                  <path d="M5 4v32" stroke="#4b5563" stroke-width="2" stroke-linecap="round" />
+                  <path class="flag-wave" d="M6 4 l28 7.5 L6 19" fill="${w.red_flag ? '#ef4444' : '#3b82f6'}" />
+                </svg>
+                <div class="wind-trails" style="position: absolute; top: 10px; left: 20px;">
+                  <div class="trail" style="top: 0; animation-delay: ${Math.random()}s"></div>
+                  <div class="trail" style="top: 8px; animation-delay: ${Math.random() + 0.5}s"></div>
+                </div>
+              </div>
+            `,
+            iconSize: [40, 40],
+            iconAnchor: [5, 35]
+          });
+
+          return (
+            <Marker key={`weather-${idx}-${pIdx}`} position={[p.lat, p.lon]} icon={icon}>
+              <Tooltip direction="top" offset={[10, -20]} opacity={1} permanent={false} className="sleek-tooltip">
+                <div class="bg-gray-900/90 backdrop-blur-md text-white p-3 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-white/10 min-w-[140px]">
+                  <div class="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2 border-b border-white/10 pb-1.5">
+                    STATION {idx+1}
+                  </div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">Wind Speed</span>
+                    <span className="font-mono text-sm font-black text-red-400">${w.wind_speed} <small className="text-[9px] opacity-70">km/h</small></span>
+                  </div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">Bearing</span>
+                    <span className="font-mono text-xs font-black text-gray-300 tracking-tighter">${w.wind_direction}° ${getDir(w.wind_direction)}</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">Humid</span>
+                    <span className="font-mono text-sm font-black text-blue-400">${w.humidity}%</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-gray-400 font-bold uppercase">Temp</span>
+                    <span className="font-mono text-sm font-black text-orange-400">${w.temperature}°C</span>
+                  </div>
+                </div>
+                <style>{`
+                  .leaflet-tooltip.sleek-tooltip {
+                    background: transparent;
+                    border: none;
+                    box-shadow: none;
+                    padding: 0;
+                  }
+                  .leaflet-tooltip-top.sleek-tooltip::before {
+                    border-top-color: rgba(17, 24, 39, 0.9);
+                  }
+                  /* Tooltip Reset - Shared with Weather and Risk */
+                  .leaflet-tooltip.glass-tooltip-wrapper {
+                    background: transparent !important;
+                    color: white !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    padding: 0 !important;
+                  }
+                  .leaflet-tooltip-top.glass-tooltip-wrapper::before {
+                    border-top-color: transparent !important;
+                  }
+                  
+                  /* Flip Card CSS - Absolute Perfection */
+                  
+                  /* Flip Card CSS - Absolute Perfection */
+                  .risk-card {
+                    perspective: 2000px; /* High perspective for cinematic feel */
+                    width: 260px;
+                    height: 320px;
+                    position: relative;
+                  }
+                  .risk-card-inner {
+                    position: absolute;
+                    width: 100%;
+                    height: 100%;
+                    transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+                    transform-style: preserve-3d;
+                  }
+                  .risk-card.is-flipped .risk-card-inner {
+                    transform: rotateY(180deg);
+                  }
+                  .card-front, .card-back {
+                    position: absolute;
+                    top: 0;
+                    right: 0;
+                    bottom: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    backface-visibility: hidden;
+                    border-radius: 1.5rem;
+                    display: flex;
+                    flex-direction: column;
+                  }
+                  .card-back {
+                    transform: rotateY(180deg);
+                  }
+                `}</style>
+              </Tooltip>
+            </Marker>
+          );
+        });
+      })}
+    </>
+  );
+}
+
 export default function MapWorkspace({ activeProjectId, activeProjectEntry, setActiveProjectId }) {
   const [redFile, setRedFile] = useState(null);
   const [nirFile, setNirFile] = useState(null);
@@ -70,6 +287,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
   const [showRisk, setShowRisk] = useState(true);
   const [showLines, setShowLines] = useState(true);
   const [fitTrigger, setFitTrigger] = useState(0);
+  const [weatherData, setWeatherData] = useState(null);
 
   // History Tracking
   const [runs, setRuns] = useState([]);
@@ -113,6 +331,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
       if (riskRes.ok) {
         const riskData = await riskRes.json();
         if (riskData.features && riskData.features.length > 0) setGeoData(riskData);
+        if (riskData.properties) setWeatherData(riskData.properties);
       }
     } catch (err) {
       console.error(err.message);
@@ -130,16 +349,20 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`${API_BASE}/status/${runningJobId}?db_run_id=${selectedRunId}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.status === "SUCCESS") {
-            clearInterval(interval);
-            setRunningJobId(null);
-            setStatus("success");
-            setStatusMsg("✅ Map Generated natively via PostGIS!");
-            await fetchRuns();
-            await loadRunData(selectedRunId);
-          } else if (data.status === "FAILURE" || data.status === "CANCELED") {
+          if (res.ok) {
+            const data = await res.json();
+            const statusUpper = data.status?.toUpperCase();
+            const isDone = ["SUCCESS", "COMPLETED", "FINISHED"].includes(statusUpper);
+            const isFailed = ["FAILURE", "FAILED", "CANCELED"].includes(statusUpper);
+            
+            if (isDone) {
+              clearInterval(interval);
+              setRunningJobId(null);
+              setStatus("success");
+              setStatusMsg("✅ Analysis Sequence Finalized!");
+              await fetchRuns();
+              if (selectedRunId) await loadRunData(selectedRunId);
+            } else if (isFailed) {
             clearInterval(interval);
             setRunningJobId(null);
             setStatus("error");
@@ -219,7 +442,8 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
         <TileLayer key={activeBaseMap} url={BASE_MAPS[activeBaseMap].url} maxZoom={19} />
         <ZoomControl position="bottomright" />
         <MapEffects geoData={geoData} utilityData={utilityData} fitTrigger={fitTrigger} selectedRunId={selectedRunId} />
-        
+        <WeatherLayer weatherData={weatherData} />
+
         {showLines && utilityData && (
           <GeoJSON 
             key={`lines-${selectedRunId}-${JSON.stringify(utilityData).length}`} 
@@ -240,10 +464,165 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
               return { color: color, weight: 1, fillColor: color, fillOpacity: 0.65 };
             }}
             onEachFeature={(feature, layer) => {
-              const risk = feature.properties?.risk_level || 'Unknown';
-              layer.bindPopup(`<strong>Risk Level:</strong> <span style="color: ${risk === 'High' ? 'red' : risk === 'Medium' ? 'orange' : 'goldenrod'}">${risk}</span>`);
+              const p = feature.properties || {};
+              const risk = p.risk_level || 'Unknown';
+              const color = risk === 'High' ? '#ef4444' : risk === 'Medium' ? '#f97316' : '#fbbf24';
+              
+              // Build the "Risk DNA" Dashboard
+              const hasDNA = p.ndvi !== undefined;
+              const cardId = `card-${feature.id || Math.random()}`;
+              
+              // Helper to explain the "Why" (Authenticated Pipeline Transcript)
+              const getWhy = () => {
+                const reasons = [];
+                // 1. Base Fuel (NDVI)
+                if (p.ndvi > 0.7) reasons.push("Base fuel index is critical (NDVI > 0.7).");
+                else if (p.ndvi > 0.5) reasons.push("Significant biomass density detected (NDVI > 0.5).");
+                else reasons.push("Base fuel density is currently low (NDVI < 0.5).");
+
+                // 2. Moisture Stress (NDMI)
+                if (p.ndmi < 0.1) {
+                  reasons.push("Escalated by significant plant desiccation (NDMI < 0.1).");
+                }
+
+                // 3. Atmospheric Synergism
+                if (p.red_flag_alert) {
+                  reasons.push("Atmospheric Red Flag synergistic escalation applied.");
+                } else if (p.wind_speed > 30) {
+                  reasons.push("Wind-driven risk escalation.");
+                }
+                
+                return reasons.join(" ");
+              };
+
+              const content = `
+                <div class="risk-card sleek-tooltip" id="${cardId}">
+                  <div class="risk-card-inner">
+                    <!-- Front: Metrics -->
+                    <div class="card-front bg-gray-900/95 backdrop-blur-xl text-white p-5 border border-white/10 shadow-2xl flex flex-col justify-between">
+                      <div>
+                        <div class="flex justify-between items-center mb-4 border-b border-white/10 pb-2">
+                          <span class="text-[10px] font-black uppercase tracking-widest text-red-500">RISK PROFILE</span>
+                          <span class="px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-sm" style="background: ${color}">${risk.toUpperCase()}</span>
+                        </div>
+                        
+                        ${hasDNA ? `
+                          <div class="grid grid-cols-2 gap-y-3 gap-x-4 mb-4">
+                            <div>
+                              <div class="text-[9px] uppercase font-black text-gray-500 tracking-tighter mb-0.5">Vegetation/NDVI</div>
+                              <div class="text-sm font-mono font-black ${p.ndvi > 0.6 ? 'text-green-400' : 'text-orange-400'}">${p.ndvi.toFixed(3)}</div>
+                            </div>
+                            <div>
+                              <div class="text-[9px] uppercase font-black text-gray-500 tracking-tighter mb-0.5">Moisture/NDMI</div>
+                              <div class="text-sm font-mono font-black ${p.ndmi > 0.1 ? 'text-blue-400' : 'text-red-400'}">${p.ndmi.toFixed(3)}</div>
+                            </div>
+                            <div>
+                              <div class="text-[9px] uppercase font-black text-gray-500 tracking-tighter mb-0.5">Local Wind</div>
+                              <div class="text-sm font-mono font-black text-red-400">${p.wind_speed || '--'} <small class="text-[9px] opacity-70">km/h</small></div>
+                            </div>
+                            <div>
+                              <div class="text-[9px] uppercase font-black text-gray-500 tracking-tighter mb-0.5">Bearing</div>
+                              <div class="text-xs font-mono font-black text-gray-300 tracking-tighter">${p.wind_direction !== undefined ? `${p.wind_direction}° ${['N','NE','E','SE','S','SW','W','NW'][Math.round(p.wind_direction/45)%8]}` : '--'}</div>
+                            </div>
+                          </div>
+                          
+                          <div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                             <div class="flex justify-between items-center">
+                                <span class="text-[9px] font-black uppercase text-gray-400 tracking-widest">Atmos Profile</span>
+                                <span class="text-xs font-mono font-black text-gray-300">${p.temp || '--'}°/${p.humidity || '--'}%</span>
+                             </div>
+                          </div>
+                        ` : `
+                          <div class="text-[10px] italic text-gray-500 text-center py-10 bg-white/5 rounded-xl border border-dashed border-white/10">Legacy analysis: DNA unavailable</div>
+                        `}
+                      </div>
+                      
+                      <div class="pt-3 border-t border-white/5 flex justify-between items-center">
+                        <span class="text-[8px] text-gray-600 font-mono tracking-tighter uppercase font-bold">SN: ${feature.id?.slice(0,8) || 'N/A'}</span>
+                        <button onclick="document.getElementById('${cardId}').classList.toggle('is-flipped')" class="text-[9px] font-black text-blue-400 hover:text-blue-200 transition-colors uppercase tracking-widest flex items-center gap-1">EXPERT VIEW <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M19 9l-7 7-7-7"/></svg></button>
+                      </div>
+                    </div>
+
+                    <!-- Back: Qualitative Reasoning -->
+                    <div class="card-back bg-gray-900/95 backdrop-blur-xl text-white p-5 border border-white/10 shadow-2xl flex flex-col justify-between">
+                      <div>
+                        <div class="mb-4 border-b border-white/10 pb-2 flex justify-between items-center">
+                          <span class="text-[10px] font-black uppercase tracking-widest text-indigo-400">EXPERT ANALYSIS</span>
+                          <button onclick="document.getElementById('${cardId}').classList.toggle('is-flipped')" class="text-[18px] text-gray-500 hover:text-white leading-none">&times;</button>
+                        </div>
+                        
+                        <div>
+                          <div class="text-[8px] font-bold text-gray-500 uppercase tracking-widest mb-2 italic">Conclusion Summary:</div>
+                          <p class="text-[11px] leading-relaxed text-gray-200">${getWhy()}</p>
+                          
+                          <div class="mt-4 pt-4 border-t border-white/5">
+                             <div class="text-[8px] font-bold text-gray-400 uppercase mb-2">Primary Drivers:</div>
+                             <div class="space-y-1.5">
+                                ${p.ndvi > 0.6 ? `<div class="flex items-center gap-2 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]"></span> Bio-Mass Escalation</div>` : ''}
+                                ${p.ndmi < 0.05 ? `<div class="flex items-center gap-2 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></span> Desiccation Stress</div>` : ''}
+                                ${p.red_flag_alert ? `<div class="flex items-center gap-2 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]"></span> Wind/Humidity Synergism</div>` : ''}
+                             </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="pt-3 border-t border-white/10 text-center">
+                         <span class="text-[9px] font-black text-gray-600 uppercase tracking-widest">GeoFire-Agent v1.2</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `;
+              layer.bindPopup(content, { 
+                maxWidth: 300, 
+                className: 'glass-popup-nuclear' 
+              });
             }}
           />
+        )}
+
+        {/* Global Red Flag Badge Overlay - Dynamic Grid Edition */}
+        {weatherData && (Array.isArray(weatherData) ? weatherData.some(w => w.red_flag) : weatherData.red_flag) && (
+          <div className="absolute top-6 right-6 z-[1001] animate-bounce">
+            <div className="group relative">
+              <div className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-full shadow-[0_0_20px_rgba(220,38,38,0.5)] border-2 border-red-400 animate-pulse cursor-help">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div className="flex flex-col leading-none">
+                  <span className="font-black tracking-tighter text-[10px]">REGIONAL</span>
+                  <span className="font-black tracking-tighter text-sm">RED FLAG WARNING</span>
+                </div>
+              </div>
+              
+              {/* Minimalistic Tooltip - Dynamic Summary */}
+              <div className="absolute top-full right-0 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                <div className="bg-gray-900/95 backdrop-blur text-white p-3 rounded-xl shadow-xl border border-gray-700 min-w-[200px]">
+                  <div className="flex justify-between items-center mb-2 border-b border-gray-700 pb-1">
+                    <div className="text-[10px] uppercase font-bold text-gray-400 tracking-widest">Atmospheric Grid</div>
+                    <div className="bg-gray-700 text-[9px] px-1.5 py-0.5 rounded font-mono">{Array.isArray(weatherData) ? weatherData.length : 1} STATIONS</div>
+                  </div>
+                  
+                  {/* Summary Stats */}
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-gray-300">Max Wind Gust</span>
+                    <span className="text-sm font-mono font-bold text-red-400">
+                      {Array.isArray(weatherData) ? Math.max(...weatherData.map(w => w.wind_speed)).toFixed(1) : weatherData.wind_speed} <small>km/h</small>
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-gray-300">Min Humidity</span>
+                    <span className="text-sm font-mono font-bold text-blue-400">
+                      {Array.isArray(weatherData) ? Math.min(...weatherData.map(w => w.humidity)).toFixed(0) : weatherData.humidity}%
+                    </span>
+                  </div>
+                  <div className="text-[9px] text-gray-500 mt-2 italic text-right">
+                    * Showing worst-case regional conditions
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
       </MapContainer>
 

@@ -29,9 +29,13 @@ async def _save_upload(upload: UploadFile, destination: Path) -> None:
 async def get_status(run_id: str, db_run_id: Optional[UUID] = None, db: AsyncSession = Depends(get_db)):
     try:
         status = await DagsterService.get_run_status(run_id)
+        status_upper = status.upper() if status else "UNKNOWN"
         
-        if db_run_id and status in ["SUCCESS", "FAILURE", "CANCELED"]:
-            await RunService.update_run_status(db, db_run_id, status)
+        # Recognize all final states to prevent UI lockup
+        is_final = status_upper in ["SUCCESS", "COMPLETED", "FINISHED", "FAILURE", "FAILED", "CANCELED"]
+        
+        if db_run_id and is_final:
+            await RunService.update_run_status(db, db_run_id, status_upper)
 
         return {"run_id": run_id, "status": status}
     except Exception as e:
@@ -43,7 +47,8 @@ async def upload_files(
     red_band: UploadFile = File(...),
     nir_band: UploadFile = File(...),
     utility_lines: UploadFile = File(...),
-    canopy_height: Optional[UploadFile] = None,
+    canopy_height: Optional[UploadFile] = File(None),
+    swir_band: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db)
 ):
     project = await ProjectService.get_project_by_id(db, project_id)
@@ -82,6 +87,13 @@ async def upload_files(
         await _save_upload(canopy_height, canopy_dest)
         canopy_dest_str = str(canopy_dest)
 
+    swir_dest_str = ""
+    if swir_band:
+        swir_filename = Path(swir_band.filename).name
+        swir_dest = proj_dir / swir_filename
+        await _save_upload(swir_band, swir_dest)
+        swir_dest_str = str(swir_dest)
+
     # Update statuses in a single commit block.
     # Note: We MUST commit here so that the external Dagster process can see the run_id.
     project.status = "RUNNING"
@@ -95,6 +107,7 @@ async def upload_files(
             nir_path=str(nir_dest),
             utility_path=str(util_dest),
             canopy_path=canopy_dest_str,
+            swir_path=swir_dest_str,
             project_id=str(project_id),
             run_id=str(current_run.id)
         )

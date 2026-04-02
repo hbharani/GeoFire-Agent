@@ -43,19 +43,20 @@ class RunService:
     @staticmethod
     async def get_run_results_geojson(db: AsyncSession, run_id: UUID, asset_type: str):
         if asset_type == 'RISK_POLYGON':
-             query = """
+            query = """
             SELECT json_build_object(
                 'type', 'FeatureCollection',
                 'features', COALESCE(json_agg(
                     json_build_object(
                         'type',       'Feature',
-                        'geometry',   ST_AsGeoJSON(geometry)::json,
-                        'properties', json_build_object('risk_level', risk_level)
+                        'geometry',   ST_AsGeoJSON(ga.geometry)::json,
+                        'properties', json_build_object('risk_level', ga.risk_level)::jsonb || COALESCE(ga.properties, '{}'::jsonb)
                     )
-                ), '[]'::json)
+                ), '[]'::json),
+                'properties', (SELECT weather_data FROM analysis_runs WHERE id = CAST(:rid AS UUID))
             )
-            FROM geospatial_assets
-            WHERE run_id = :rid AND asset_type = 'RISK_POLYGON';
+            FROM geospatial_assets ga
+            WHERE ga.run_id = CAST(:rid AS UUID) AND ga.asset_type = 'RISK_POLYGON';
             """
         elif asset_type == 'UTILITY_LINE':
             query = """
@@ -64,13 +65,14 @@ class RunService:
                 'features', COALESCE(json_agg(
                     json_build_object(
                         'type',       'Feature',
-                        'geometry',   ST_AsGeoJSON(geometry)::json,
+                        'geometry',   ST_AsGeoJSON(ga.geometry)::json,
                         'properties', json_build_object('Name', 'Utility Line')
                     )
-                ), '[]'::json)
+                ), '[]'::json),
+                'properties', (SELECT weather_data FROM analysis_runs WHERE id = CAST(:rid AS UUID))
             )
-            FROM geospatial_assets
-            WHERE run_id = :rid AND asset_type = 'UTILITY_LINE';
+            FROM geospatial_assets ga
+            WHERE ga.run_id = CAST(:rid AS UUID) AND ga.asset_type = 'UTILITY_LINE';
             """
         else:
             raise ValueError(f"Unsupported asset type: {asset_type}")

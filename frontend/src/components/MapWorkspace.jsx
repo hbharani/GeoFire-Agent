@@ -180,25 +180,25 @@ function WeatherLayer({ weatherData }) {
           return (
             <Marker key={`weather-${idx}-${pIdx}`} position={[p.lat, p.lon]} icon={icon}>
               <Tooltip direction="top" offset={[10, -20]} opacity={1} permanent={false} className="sleek-tooltip">
-                <div class="bg-gray-900/90 backdrop-blur-md text-white p-3 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-white/10 min-w-[140px]">
-                  <div class="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2 border-b border-white/10 pb-1.5">
+                <div className="bg-gray-900/90 backdrop-blur-md text-white p-3 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-white/10 min-w-[140px]">
+                  <div className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2 border-b border-white/10 pb-1.5">
                     STATION {idx+1}
                   </div>
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-[10px] text-gray-400 font-bold uppercase">Wind Speed</span>
-                    <span className="font-mono text-sm font-black text-red-400">${w.wind_speed} <small className="text-[9px] opacity-70">km/h</small></span>
+                    <span className="font-mono text-sm font-black text-red-400">{w.wind_speed} <small className="text-[9px] opacity-70">km/h</small></span>
                   </div>
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-[10px] text-gray-400 font-bold uppercase">Bearing</span>
-                    <span className="font-mono text-xs font-black text-gray-300 tracking-tighter">${w.wind_direction}° ${getDir(w.wind_direction)}</span>
+                    <span className="font-mono text-xs font-black text-gray-300 tracking-tighter">{w.wind_direction}° {getDir(w.wind_direction)}</span>
                   </div>
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-[10px] text-gray-400 font-bold uppercase">Humid</span>
-                    <span className="font-mono text-sm font-black text-blue-400">${w.humidity}%</span>
+                    <span className="font-mono text-sm font-black text-blue-400">{w.humidity}%</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-[10px] text-gray-400 font-bold uppercase">Temp</span>
-                    <span className="font-mono text-sm font-black text-orange-400">${w.temperature}°C</span>
+                    <span className="font-mono text-sm font-black text-orange-400">{w.temperature}°C</span>
                   </div>
                 </div>
                 <style>{`

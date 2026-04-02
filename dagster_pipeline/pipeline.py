@@ -378,7 +378,7 @@ def mask_and_calculate_risk(
             with engine.begin() as conn:
                 import json
                 conn.execute(
-                    text("UPDATE analysis_runs SET weather_data = :wdata WHERE id = CAST(:rid AS UUID)"),
+                    text("UPDATE analysis_runs SET weather_data = CAST(:wdata AS jsonb) WHERE id = CAST(:rid AS UUID)"),
                     {"wdata": json.dumps(weather_results), "rid": run_id}
                 )
             context.log.info(f"Persisted atmospheric metadata for {len(weather_results)} stations to Database.")

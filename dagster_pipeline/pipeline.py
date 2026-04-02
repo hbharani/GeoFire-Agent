@@ -49,7 +49,9 @@ def get_live_fire_weather(lats: list, lons: list):
     lon_str = ",".join([f"{l:.4f}" for l in lons])
     url = f"https://api.open-meteo.com/v1/forecast?latitude={lat_str}&longitude={lon_str}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m"
     try:
-        response = httpx.get(url, timeout=15.0).json()
+        resp = httpx.get(url, timeout=15.0)
+        resp.raise_for_status()
+        response = resp.json()
         
         # Handle single vs multiple location response format
         if not isinstance(response, list):
@@ -80,8 +82,11 @@ def get_live_fire_weather(lats: list, lons: list):
                 "red_flag": red_flag_warning
             })
         return results
+    except httpx.HTTPStatusError as e:
+        logger.error(f"HTTP error fetching weather data: {e.response.status_code} - {e.response.text}")
+        return None
     except Exception as e:
-        logger.error(f"Failed to fetch batch weather data: {e}")
+        logger.error(f"Unexpected error fetching batch weather data: {e}")
         return None
 
 # --------------------------------------------------------------------------- #
@@ -139,46 +144,10 @@ def mask_and_calculate_risk(
     else:
         use_swir_internal = True
 
-    # 1. Align Coordinate Systems & Calculate Dynamic Weather Grid
+    # 1. Align Coordinate Systems
     with rasterio.open(red_path) as src_red:
         raster_crs = src_red.crs
         raster_bounds = src_red.bounds
-        
-        # Calculate dynamic grid dimensions (Target: ~20km resolution)
-        width_m = raster_bounds.right - raster_bounds.left
-        height_m = raster_bounds.top - raster_bounds.bottom
-        resolution_m = 20000.0 # 20km
-        
-        num_cols = max(1, math.ceil(width_m / resolution_m))
-        num_rows = max(1, math.ceil(height_m / resolution_m))
-        
-        context.log.info(f"Generating dynamic weather grid: {num_cols}x{num_rows} sampling points ({width_m/1000:.1f}km x {height_m/1000:.1f}km area)")
-        
-        # Generate grid centroids
-        lats, lons = [], []
-        from pyproj import Transformer
-        transformer = Transformer.from_crs(raster_crs, "EPSG:4326", always_xy=True)
-        
-        col_step = width_m / num_cols
-        row_step = height_m / num_rows
-        
-        for r in range(num_rows):
-            for c in range(num_cols):
-                # Calculate center of each cell in meters
-                mx = raster_bounds.left + (c + 0.5) * col_step
-                my = raster_bounds.bottom + (r + 0.5) * row_step
-                lon, lat = transformer.transform(mx, my)
-                lats.append(lat)
-                lons.append(lon)
-        
-    context.log.info(f"Fetching batch weather for {len(lats)} dynamic stations...")
-    weather_results = get_live_fire_weather(lats, lons)
-    
-    if weather_results:
-        num_red_flags = sum(1 for w in weather_results if w['red_flag'])
-        context.log.info(f"Atmospheric Data Received: {len(weather_results)} points. RED FLAGS: {num_red_flags}")
-    else:
-        context.log.warning("Spatial weather fetch returned no results. Proceeding with baseline risk factors only...")
 
     # 2. Push Utility Lines to DB & Buffer instantly
     context.log.info("Loading Utility lines directly into PostGIS...")
@@ -261,6 +230,47 @@ def mask_and_calculate_risk(
 
     use_swir = use_swir and use_swir_internal
 
+    # 2b. Calculate Dynamic Weather Grid based on MASKED bounds
+    from rasterio import array_bounds
+    h_masked, w_masked = red_masked[0].shape
+    masked_bounds = array_bounds(h_masked, w_masked, out_transform)
+    
+    # Calculate dynamic grid dimensions (Target: ~20km resolution)
+    width_m = masked_bounds.right - masked_bounds.left
+    height_m = masked_bounds.top - masked_bounds.bottom
+    resolution_m = 20000.0 # 20km
+    
+    num_cols = max(1, math.ceil(width_m / resolution_m))
+    num_rows = max(1, math.ceil(height_m / resolution_m))
+    
+    context.log.info(f"Generating dynamic weather grid for masked area: {num_cols}x{num_rows} sampling points ({width_m/1000:.1f}km x {height_m/1000:.1f}km area)")
+    
+    # Generate grid centroids
+    lats, lons = [], []
+    from pyproj import Transformer
+    transformer = Transformer.from_crs(raster_crs, "EPSG:4326", always_xy=True)
+    
+    col_step = width_m / num_cols
+    row_step = height_m / num_rows
+    
+    for r in range(num_rows):
+        for c in range(num_cols):
+            # Calculate center of each cell in meters
+            mx = masked_bounds.left + (c + 0.5) * col_step
+            my = masked_bounds.bottom + (r + 0.5) * row_step
+            lon, lat = transformer.transform(mx, my)
+            lats.append(lat)
+            lons.append(lon)
+    
+    context.log.info(f"Fetching batch weather for {len(lats)} dynamic stations...")
+    weather_results = get_live_fire_weather(lats, lons)
+    
+    if weather_results:
+        num_red_flags = sum(1 for w in weather_results if w['red_flag'])
+        context.log.info(f"Atmospheric Data Received: {len(weather_results)} points. RED FLAGS: {num_red_flags}")
+    else:
+        context.log.warning("Spatial weather fetch returned no results. Proceeding with baseline risk factors only...")
+
     # Calculate NDVI
     denominator = (nir_data + red_data)
     ndvi = np.zeros_like(red_data)
@@ -294,7 +304,28 @@ def mask_and_calculate_risk(
         
         # Create a low-res red flag map based on the grid
         # Note: Open-Meteo returns results in the same order as requested (row by row)
-        red_flag_grid = np.array([w['red_flag'] for w in weather_results]).reshape(num_rows, num_cols)
+        red_flag_values = [bool(w.get('red_flag', False)) for w in weather_results]
+        expected_cells = num_rows * num_cols
+
+        if len(red_flag_values) != expected_cells:
+            context.log.warning(
+                "Weather results size (%d) does not match expected grid size (%d x %d = %d). "
+                "Falling back to partial red-flag grid population.",
+                len(red_flag_values),
+                num_rows,
+                num_cols,
+                expected_cells,
+            )
+
+        # Initialize full grid with no red flags
+        red_flag_grid = np.zeros((num_rows, num_cols), dtype=bool)
+
+        # Populate as many cells as we have data for, in row-major order
+        max_fill = min(len(red_flag_values), expected_cells)
+        for idx in range(max_fill):
+            row = idx // num_cols
+            col = idx % num_cols
+            red_flag_grid[row, col] = red_flag_values[idx]
         
         if np.any(red_flag_grid):
             # Efficiently upscale the low-res flag grid to the full raster dimension using nearest-neighbor mapping
@@ -331,7 +362,8 @@ def mask_and_calculate_risk(
             # Risk DNA: Sample the underlying raster data for this polygon using its centroid
             # Optimization: Instead of expensive geometry masking, we use the centroid for high-speed sampling
             centroid = poly.centroid
-            cx, cy = int((centroid.x - raster_bounds.left) * w / width_m), int((raster_bounds.top - centroid.y) * h / height_m)
+            # Use masked_bounds instead of full raster_bounds for correct alignment
+            cx, cy = int((centroid.x - masked_bounds.left) * w / width_m), int((masked_bounds.top - centroid.y) * h / height_m)
             # Clip indices to avoid out-of-bounds
             cx, cy = max(0, min(w-1, cx)), max(0, min(h-1, cy))
             

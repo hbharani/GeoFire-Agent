@@ -54,7 +54,7 @@ function MapEffects({ geoData, utilityData, fitTrigger, selectedRunId }) {
 /* 
   NUCLEAR GLASS RESET - Final kill for Leaflet white boxes 
 */
-const GlobalPopupStyles = `
+const GlobalMapStyles = `
   .leaflet-popup.glass-popup-nuclear .leaflet-popup-content-wrapper,
   .leaflet-popup.glass-popup-nuclear .leaflet-popup-tip {
     background: transparent !important;
@@ -106,6 +106,43 @@ const GlobalPopupStyles = `
   .card-back {
     transform: rotateY(180deg);
   }
+
+  /* Tooltip Reset - Shared with Weather and Risk */
+  .leaflet-tooltip.sleek-tooltip,
+  .leaflet-tooltip.glass-tooltip-wrapper {
+    background: transparent !important;
+    color: white !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+  .leaflet-tooltip-top.sleek-tooltip::before {
+    border-top-color: rgba(17, 24, 39, 0.9) !important;
+  }
+  .leaflet-tooltip-top.glass-tooltip-wrapper::before {
+    border-top-color: transparent !important;
+  }
+
+  @keyframes windy-wave {
+    0% { transform: skewY(-5deg) scaleX(1); }
+    100% { transform: skewY(15deg) scaleX(0.85); }
+  }
+  @keyframes windy-trail {
+    0% { transform: translateX(0); opacity: 0; }
+    50% { opacity: 0.6; }
+    100% { transform: translateX(20px); opacity: 0; }
+  }
+  .windy-flag .flag-wave {
+    animation: windy-wave 0.8s ease-in-out infinite alternate;
+    transform-origin: left center;
+  }
+  .wind-trails .trail {
+    position: absolute;
+    background: white;
+    height: 1px;
+    width: 15px;
+    animation: windy-trail 1s linear infinite;
+  }
 `;
 
 function WeatherLayer({ weatherData }) {
@@ -121,33 +158,10 @@ function WeatherLayer({ weatherData }) {
 
   return (
     <>
-      <style>{GlobalPopupStyles}</style>
-      <style>{`
-        @keyframes windy-wave {
-          0% { transform: skewY(-5deg) scaleX(1); }
-          100% { transform: skewY(15deg) scaleX(0.85); }
-        }
-        @keyframes windy-trail {
-          0% { transform: translateX(0); opacity: 0; }
-          50% { opacity: 0.6; }
-          100% { transform: translateX(20px); opacity: 0; }
-        }
-        .windy-flag .flag-wave {
-          animation: windy-wave 0.8s ease-in-out infinite alternate;
-          transform-origin: left center;
-        }
-        .wind-trails .trail {
-          position: absolute;
-          background: white;
-          height: 1px;
-          width: 15px;
-          animation: windy-trail 1s linear infinite;
-        }
-      `}</style>
-      
+
       {weatherData.map((w, idx) => {
         if (!w.red_flag) return null;
-        
+
         const basePoints = [{ lat: w.latitude, lon: w.longitude }];
         if (showDiamond) {
           basePoints.push({ lat: w.latitude + offset, lon: w.longitude });
@@ -158,7 +172,7 @@ function WeatherLayer({ weatherData }) {
 
         return basePoints.map((p, pIdx) => {
           const rotation = (w.wind_direction + 90) % 360;
-          const getDir = (d) => ['N','NE','E','SE','S','SW','W','NW'][Math.round(d/45)%8];
+          const getDir = (d) => ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(d / 45) % 8];
           const icon = L.divIcon({
             className: 'weather-icon',
             html: `
@@ -180,9 +194,9 @@ function WeatherLayer({ weatherData }) {
           return (
             <Marker key={`weather-${idx}-${pIdx}`} position={[p.lat, p.lon]} icon={icon}>
               <Tooltip direction="top" offset={[10, -20]} opacity={1} permanent={false} className="sleek-tooltip">
-                <div className="bg-gray-900/90 backdrop-blur-md text-white p-3 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-white/10 min-w-[140px]">
-                  <div className="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2 border-b border-white/10 pb-1.5">
-                    STATION {idx+1}
+                <div class="bg-gray-900/90 backdrop-blur-md text-white p-3 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-white/10 min-w-[140px]">
+                  <div class="text-[10px] font-black text-red-500 uppercase tracking-widest mb-2 border-b border-white/10 pb-1.5">
+                    STATION {idx + 1}
                   </div>
                   <div className="flex justify-between items-center mb-1.5">
                     <span className="text-[10px] text-gray-400 font-bold uppercase">Wind Speed</span>
@@ -201,64 +215,6 @@ function WeatherLayer({ weatherData }) {
                     <span className="font-mono text-sm font-black text-orange-400">{w.temperature}°C</span>
                   </div>
                 </div>
-                <style>{`
-                  .leaflet-tooltip.sleek-tooltip {
-                    background: transparent;
-                    border: none;
-                    box-shadow: none;
-                    padding: 0;
-                  }
-                  .leaflet-tooltip-top.sleek-tooltip::before {
-                    border-top-color: rgba(17, 24, 39, 0.9);
-                  }
-                  /* Tooltip Reset - Shared with Weather and Risk */
-                  .leaflet-tooltip.glass-tooltip-wrapper {
-                    background: transparent !important;
-                    color: white !important;
-                    border: none !important;
-                    box-shadow: none !important;
-                    padding: 0 !important;
-                  }
-                  .leaflet-tooltip-top.glass-tooltip-wrapper::before {
-                    border-top-color: transparent !important;
-                  }
-                  
-                  /* Flip Card CSS - Absolute Perfection */
-                  
-                  /* Flip Card CSS - Absolute Perfection */
-                  .risk-card {
-                    perspective: 2000px; /* High perspective for cinematic feel */
-                    width: 260px;
-                    height: 320px;
-                    position: relative;
-                  }
-                  .risk-card-inner {
-                    position: absolute;
-                    width: 100%;
-                    height: 100%;
-                    transition: transform 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
-                    transform-style: preserve-3d;
-                  }
-                  .risk-card.is-flipped .risk-card-inner {
-                    transform: rotateY(180deg);
-                  }
-                  .card-front, .card-back {
-                    position: absolute;
-                    top: 0;
-                    right: 0;
-                    bottom: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    backface-visibility: hidden;
-                    border-radius: 1.5rem;
-                    display: flex;
-                    flex-direction: column;
-                  }
-                  .card-back {
-                    transform: rotateY(180deg);
-                  }
-                `}</style>
               </Tooltip>
             </Marker>
           );
@@ -278,11 +234,11 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
   const [statusMsg, setStatusMsg] = useState("");
   const [panelOpen, setPanelOpen] = useState(true);
   const [activeTab, setActiveTab] = useState("history"); // 'history' or 'upload'
-  
+
   const [geoData, setGeoData] = useState(null);
   const [utilityData, setUtilityData] = useState(null);
   const [loadingResults, setLoadingResults] = useState(false);
-  
+
   const [activeBaseMap, setActiveBaseMap] = useState("dark");
   const [showRisk, setShowRisk] = useState(true);
   const [showLines, setShowLines] = useState(true);
@@ -293,7 +249,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
   const [runs, setRuns] = useState([]);
   const [selectedRunId, setSelectedRunId] = useState(null);
   const [runningJobId, setRunningJobId] = useState(null);
-  
+
   const formRef = useRef(null);
 
   const fetchRuns = async () => {
@@ -311,8 +267,8 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
 
   useEffect(() => {
     if (activeProjectId) {
-        setSelectedRunId(null);
-        fetchRuns();
+      setSelectedRunId(null);
+      fetchRuns();
     }
   }, [activeProjectId]);
 
@@ -349,20 +305,20 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`${API_BASE}/status/${runningJobId}?db_run_id=${selectedRunId}`);
-          if (res.ok) {
-            const data = await res.json();
-            const statusUpper = data.status?.toUpperCase();
-            const isDone = ["SUCCESS", "COMPLETED", "FINISHED"].includes(statusUpper);
-            const isFailed = ["FAILURE", "FAILED", "CANCELED"].includes(statusUpper);
-            
-            if (isDone) {
-              clearInterval(interval);
-              setRunningJobId(null);
-              setStatus("success");
-              setStatusMsg("✅ Analysis Sequence Finalized!");
-              await fetchRuns();
-              if (selectedRunId) await loadRunData(selectedRunId);
-            } else if (isFailed) {
+        if (res.ok) {
+          const data = await res.json();
+          const statusUpper = data.status?.toUpperCase();
+          const isDone = ["SUCCESS", "COMPLETED", "FINISHED"].includes(statusUpper);
+          const isFailed = ["FAILURE", "FAILED", "CANCELED"].includes(statusUpper);
+
+          if (isDone) {
+            clearInterval(interval);
+            setRunningJobId(null);
+            setStatus("success");
+            setStatusMsg("✅ Analysis Sequence Finalized!");
+            await fetchRuns();
+            if (selectedRunId) await loadRunData(selectedRunId);
+          } else if (isFailed) {
             clearInterval(interval);
             setRunningJobId(null);
             setStatus("error");
@@ -401,7 +357,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
         throw new Error(err.detail ?? "Upload failed");
       }
       const data = await response.json();
-      
+
       if (data.dagster?.errors) {
         throw new Error(data.dagster.errors[0]?.message ?? "Unknown GraphQL Error");
       }
@@ -415,10 +371,10 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
       if (launchRun.message) {
         throw new Error("Dagster API Error: " + launchRun.message);
       }
-      
+
       const runId = launchRun.run?.runId;
       const historyRunId = data.run_id;
-      
+
       if (runId) {
         setRunningJobId(runId);
         setSelectedRunId(historyRunId);
@@ -439,23 +395,24 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
   return (
     <div className="relative w-screen h-screen overflow-hidden">
       <MapContainer center={[33.68, -116.17]} zoom={11} zoomControl={false} className="absolute inset-0 z-0 bg-gray-900" style={{ width: "100%", height: "100%" }}>
+        <style>{GlobalMapStyles}</style>
         <TileLayer key={activeBaseMap} url={BASE_MAPS[activeBaseMap].url} maxZoom={19} />
         <ZoomControl position="bottomright" />
         <MapEffects geoData={geoData} utilityData={utilityData} fitTrigger={fitTrigger} selectedRunId={selectedRunId} />
         <WeatherLayer weatherData={weatherData} />
 
         {showLines && utilityData && (
-          <GeoJSON 
-            key={`lines-${selectedRunId}-${JSON.stringify(utilityData).length}`} 
-            data={utilityData} 
+          <GeoJSON
+            key={`lines-${selectedRunId}-${JSON.stringify(utilityData).length}`}
+            data={utilityData}
             style={{ color: "#3b82f6", weight: 3, opacity: 0.8, dashArray: "4 4" }}
           />
         )}
-        
+
         {showRisk && geoData && (
-          <GeoJSON 
-            key={`risk-${selectedRunId}-${JSON.stringify(geoData).length}`} 
-            data={geoData} 
+          <GeoJSON
+            key={`risk-${selectedRunId}-${JSON.stringify(geoData).length}`}
+            data={geoData}
             style={(feature) => {
               const risk = feature.properties?.risk_level;
               let color = "#fbbf24";
@@ -467,11 +424,11 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
               const p = feature.properties || {};
               const risk = p.risk_level || 'Unknown';
               const color = risk === 'High' ? '#ef4444' : risk === 'Medium' ? '#f97316' : '#fbbf24';
-              
+
               // Build the "Risk DNA" Dashboard
               const hasDNA = p.ndvi !== undefined;
               const cardId = `card-${feature.id || Math.random()}`;
-              
+
               // Helper to explain the "Why" (Authenticated Pipeline Transcript)
               const getWhy = () => {
                 const reasons = [];
@@ -491,7 +448,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                 } else if (p.wind_speed > 30) {
                   reasons.push("Wind-driven risk escalation.");
                 }
-                
+
                 return reasons.join(" ");
               };
 
@@ -522,7 +479,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                             </div>
                             <div>
                               <div class="text-[9px] uppercase font-black text-gray-500 tracking-tighter mb-0.5">Bearing</div>
-                              <div class="text-xs font-mono font-black text-gray-300 tracking-tighter">${p.wind_direction !== undefined ? `${p.wind_direction}° ${['N','NE','E','SE','S','SW','W','NW'][Math.round(p.wind_direction/45)%8]}` : '--'}</div>
+                              <div class="text-xs font-mono font-black text-gray-300 tracking-tighter">${p.wind_direction !== undefined ? `${p.wind_direction}° ${['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(p.wind_direction / 45) % 8]}` : '--'}</div>
                             </div>
                           </div>
                           
@@ -538,7 +495,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                       </div>
                       
                       <div class="pt-3 border-t border-white/5 flex justify-between items-center">
-                        <span class="text-[8px] text-gray-600 font-mono tracking-tighter uppercase font-bold">SN: ${feature.id?.slice(0,8) || 'N/A'}</span>
+                        <span class="text-[8px] text-gray-600 font-mono tracking-tighter uppercase font-bold">SN: ${feature.id?.slice(0, 8) || 'N/A'}</span>
                         <button onclick="document.getElementById('${cardId}').classList.toggle('is-flipped')" class="text-[9px] font-black text-blue-400 hover:text-blue-200 transition-colors uppercase tracking-widest flex items-center gap-1">EXPERT VIEW <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M19 9l-7 7-7-7"/></svg></button>
                       </div>
                     </div>
@@ -573,9 +530,9 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                   </div>
                 </div>
               `;
-              layer.bindPopup(content, { 
-                maxWidth: 300, 
-                className: 'glass-popup-nuclear' 
+              layer.bindPopup(content, {
+                maxWidth: 300,
+                className: 'glass-popup-nuclear'
               });
             }}
           />
@@ -594,7 +551,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                   <span className="font-black tracking-tighter text-sm">RED FLAG WARNING</span>
                 </div>
               </div>
-              
+
               {/* Minimalistic Tooltip - Dynamic Summary */}
               <div className="absolute top-full right-0 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
                 <div className="bg-gray-900/95 backdrop-blur text-white p-3 rounded-xl shadow-xl border border-gray-700 min-w-[200px]">
@@ -602,7 +559,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                     <div className="text-[10px] uppercase font-bold text-gray-400 tracking-widest">Atmospheric Grid</div>
                     <div className="bg-gray-700 text-[9px] px-1.5 py-0.5 rounded font-mono">{Array.isArray(weatherData) ? weatherData.length : 1} STATIONS</div>
                   </div>
-                  
+
                   {/* Summary Stats */}
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-xs text-gray-300">Max Wind Gust</span>
@@ -628,27 +585,27 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
 
       {/* Main Consolidated Bottom Bar - Iconified Edition */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] flex items-center bg-white/95 backdrop-blur shadow-2xl rounded-full p-1.5 border border-gray-200">
-        
+
         {/* Base Maps Segment */}
         <div className="flex bg-gray-100 rounded-full p-1 border border-gray-200 shadow-inner mr-4">
-          <button 
-            onClick={() => setActiveBaseMap("dark")} 
+          <button
+            onClick={() => setActiveBaseMap("dark")}
             title="Switch to Dark Matter map"
             className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${activeBaseMap === "dark" ? "bg-white text-gray-800 shadow-md" : "text-gray-400 hover:text-gray-600"}`}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
             <span className="text-[10px] font-black uppercase">Dark</span>
           </button>
-          <button 
-            onClick={() => setActiveBaseMap("light")} 
+          <button
+            onClick={() => setActiveBaseMap("light")}
             title="Switch to Light Grayscale map"
             className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${activeBaseMap === "light" ? "bg-white text-gray-800 shadow-md" : "text-gray-400 hover:text-gray-600"}`}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M12 3v1m0 16v1m9-9h-1M4 11H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>
             <span className="text-[10px] font-black uppercase">Light</span>
           </button>
-          <button 
-            onClick={() => setActiveBaseMap("satellite")} 
+          <button
+            onClick={() => setActiveBaseMap("satellite")}
             title="Switch to High-Res Satellite Imagery"
             className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${activeBaseMap === "satellite" ? "bg-white text-gray-800 shadow-md" : "text-gray-400 hover:text-gray-600"}`}
           >
@@ -656,21 +613,21 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
             <span className="text-[10px] font-black uppercase">Earth</span>
           </button>
         </div>
-        
+
         <div className="w-px h-6 bg-gray-200 shadow-sm mr-4"></div>
-        
+
         {/* Overlays Segment */}
         <div className="flex items-center gap-2 pr-2 pl-2">
-          <button 
-            onClick={() => setShowLines(!showLines)} 
+          <button
+            onClick={() => setShowLines(!showLines)}
             title="Toggle regional infrastructure and utility network layer"
             className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border shadow-sm flex items-center gap-1.5 ${showLines ? "bg-blue-500 text-white border-blue-600" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"}`}
           >
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             GRID
           </button>
-          <button 
-            onClick={() => setShowRisk(!showRisk)} 
+          <button
+            onClick={() => setShowRisk(!showRisk)}
             title="Toggle threat polygons and risk DNA segments"
             className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border shadow-sm flex items-center gap-1.5 ${showRisk ? "bg-red-500 text-white border-red-600" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"}`}
           >
@@ -678,102 +635,102 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
             THREAT
           </button>
         </div>
-        
+
         <div className="w-px h-6 bg-gray-200 shadow-sm mr-4 ml-1"></div>
-        
-        <button 
-          onClick={() => setFitTrigger(f => f + 1)} 
+
+        <button
+          onClick={() => setFitTrigger(f => f + 1)}
           title="Zoom to fit active analysis data on screen"
           className="px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest transition-all border shadow-sm flex items-center gap-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 uppercase"
         >
-           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
-           FIT VIEW
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+          FIT VIEW
         </button>
-        
+
       </div>
 
       <div className="absolute top-4 left-4 z-[1000] w-[350px] max-w-[calc(100vw-2rem)] flex flex-col gap-3">
-        
+
         {/* Main Panel */}
         <div className="bg-white shadow-2xl rounded-2xl flex flex-col border border-gray-100 overflow-hidden">
-            <div className={`flex items-center justify-between px-4 py-3 bg-gray-900 text-white cursor-pointer ${panelOpen ? 'border-b border-gray-800' : ''}`} onClick={() => setPanelOpen((o) => !o)}>
-                <div className="flex items-center gap-2">
-                    <button onClick={(e) => { e.stopPropagation(); setActiveProjectId(null); }} className="mr-1 p-1 rounded hover:bg-gray-700 text-gray-400 transition-colors" title="Return to Project Dashboard">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
-                    </button>
-                    <span className="font-extrabold tracking-tight text-lg truncate w-48">{activeProjectEntry?.name}</span>
-                </div>
-                <button title={panelOpen ? "Collapse control panel" : "Expand control panel"}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-500 transition-transform ${panelOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
-                </button>
+          <div className={`flex items-center justify-between px-4 py-3 bg-gray-900 text-white cursor-pointer ${panelOpen ? 'border-b border-gray-800' : ''}`} onClick={() => setPanelOpen((o) => !o)}>
+            <div className="flex items-center gap-2">
+              <button onClick={(e) => { e.stopPropagation(); setActiveProjectId(null); }} className="mr-1 p-1 rounded hover:bg-gray-700 text-gray-400 transition-colors" title="Return to Project Dashboard">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
+              </button>
+              <span className="font-extrabold tracking-tight text-lg truncate w-48">{activeProjectEntry?.name}</span>
             </div>
+            <button title={panelOpen ? "Collapse control panel" : "Expand control panel"}>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-500 transition-transform ${panelOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+            </button>
+          </div>
 
-            {panelOpen && (
+          {panelOpen && (
             <div className="flex flex-col bg-white">
-                {/* Tabs */}
-                <div className="flex border-b border-gray-100 text-[10px] font-black tracking-widest uppercase">
-                    <button 
-                      onClick={() => setActiveTab("history")} 
-                      title="Browse and select historical analysis runs"
-                      className={`flex-1 py-3 flex items-center justify-center gap-2 transition-all ${activeTab === 'history' ? 'border-b-2 border-indigo-500 text-indigo-700 bg-indigo-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      HISTORY
+              {/* Tabs */}
+              <div className="flex border-b border-gray-100 text-[10px] font-black tracking-widest uppercase">
+                <button
+                  onClick={() => setActiveTab("history")}
+                  title="Browse and select historical analysis runs"
+                  className={`flex-1 py-3 flex items-center justify-center gap-2 transition-all ${activeTab === 'history' ? 'border-b-2 border-indigo-500 text-indigo-700 bg-indigo-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  HISTORY
+                </button>
+                <button
+                  onClick={() => setActiveTab("upload")}
+                  title="Configure and launch a new Sentinel-2 fire risk analysis"
+                  className={`flex-1 py-3 flex items-center justify-center gap-2 transition-all ${activeTab === 'upload' ? 'border-b-2 border-indigo-500 text-indigo-700 bg-indigo-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M12 4v16m8-8H4" /></svg>
+                  ANALYZE
+                </button>
+              </div>
+
+              <div className="px-5 py-4 pb-5">
+                {/* Tab 1: Configuration Upload */}
+                {activeTab === 'upload' && (
+                  <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-3">
+                    <FileField id="red_band" label="Red Band (B04)" accept=".tif,.tiff,.geotiff,.jp2" file={redFile} onChange={(e) => setRedFile(e.target.files[0] ?? null)} />
+                    <FileField id="nir_band" label="NIR Band (B08)" accept=".tif,.tiff,.geotiff,.jp2" file={nirFile} onChange={(e) => setNirFile(e.target.files[0] ?? null)} />
+                    <FileField id="canopy" label="Canopy Height (Optional)" accept=".tif,.tiff,.geotiff" file={canopyFile} onChange={(e) => setCanopyFile(e.target.files[0] ?? null)} />
+                    <FileField id="swir_band" label="SWIR Band (B11/B12, 20m - Optional)" accept=".tif,.tiff,.geotiff,.jp2" file={swirFile} onChange={(e) => setSwirFile(e.target.files[0] ?? null)} />
+                    <FileField id="utility" label="Infrastructure Network" accept=".zip,.geojson,.json,.shp" file={utilityFile} onChange={(e) => setUtilityFile(e.target.files[0] ?? null)} />
+                    <button type="submit" disabled={runningJobId !== null} title="Execute high-performance end-to-end fire risk pipeline" className="mt-2 w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 py-3 text-[11px] font-black uppercase tracking-widest text-white shadow-lg hover:bg-indigo-700 hover:shadow-xl disabled:opacity-50 transition-all cursor-pointer">
+                      <svg className={`w-4 h-4 ${runningJobId ? 'animate-bounce' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      {runningJobId ? "RUNNING..." : "LAUNCH"}
                     </button>
-                    <button 
-                      onClick={() => setActiveTab("upload")} 
-                      title="Configure and launch a new Sentinel-2 fire risk analysis"
-                      className={`flex-1 py-3 flex items-center justify-center gap-2 transition-all ${activeTab === 'upload' ? 'border-b-2 border-indigo-500 text-indigo-700 bg-indigo-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M12 4v16m8-8H4" /></svg>
-                      ANALYZE
-                    </button>
-                </div>
-                
-                <div className="px-5 py-4 pb-5">
-                    {/* Tab 1: Configuration Upload */}
-                    {activeTab === 'upload' && (
-                        <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-3">
-                            <FileField id="red_band" label="Red Band (B04)" accept=".tif,.tiff,.geotiff,.jp2" file={redFile} onChange={(e) => setRedFile(e.target.files[0] ?? null)} />
-                            <FileField id="nir_band" label="NIR Band (B08)" accept=".tif,.tiff,.geotiff,.jp2" file={nirFile} onChange={(e) => setNirFile(e.target.files[0] ?? null)} />
-                            <FileField id="canopy" label="Canopy Height (Optional)" accept=".tif,.tiff,.geotiff" file={canopyFile} onChange={(e) => setCanopyFile(e.target.files[0] ?? null)} />
-                            <FileField id="swir_band" label="SWIR Band (B11/B12, 20m - Optional)" accept=".tif,.tiff,.geotiff,.jp2" file={swirFile} onChange={(e) => setSwirFile(e.target.files[0] ?? null)} />
-                            <FileField id="utility" label="Infrastructure Network" accept=".zip,.geojson,.json,.shp" file={utilityFile} onChange={(e) => setUtilityFile(e.target.files[0] ?? null)} />
-                            <button type="submit" disabled={runningJobId !== null} title="Execute high-performance end-to-end fire risk pipeline" className="mt-2 w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 py-3 text-[11px] font-black uppercase tracking-widest text-white shadow-lg hover:bg-indigo-700 hover:shadow-xl disabled:opacity-50 transition-all cursor-pointer">
-                                <svg className={`w-4 h-4 ${runningJobId ? 'animate-bounce' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                {runningJobId ? "RUNNING..." : "LAUNCH"}
-                            </button>
-                            <StatusBadge status={status} message={statusMsg} />
-                        </form>
-                    )}
-                    
-                    {/* Tab 2: Run History Context Switcher */}
-                    {activeTab === 'history' && (
-                        <div className="flex flex-col">
-                            {runs.length === 0 ? (
-                                <div className="text-xs text-center p-3 py-10 bg-gray-50 border border-dashed border-gray-200 rounded-lg text-gray-400">
-                                    No runs recorded. Navigate to the tracking tab to launch a sequence.
-                                </div>
-                            ) : (
-                            <div className="flex flex-col gap-2 max-h-[350px] overflow-y-auto pr-1">
-                                {runs.map(r => (
-                                    <div key={r.id} onClick={() => setSelectedRunId(r.id)} className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedRunId === r.id ? 'bg-indigo-50 border-indigo-400 border-l-[6px] shadow-sm' : 'bg-white hover:bg-gray-50 border-gray-200'} flex flex-col`}>
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span className={`text-xs font-bold truncate mr-2 flex-1 ${selectedRunId === r.id ? 'text-indigo-800' : 'text-gray-700'}`}>{r.name}</span>
-                                            <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded shadow-[0_1px_2px_rgba(0,0,0,0.05)] ${(r.status === 'SUCCESS' || r.status === 'COMPLETED') ? 'bg-green-100 text-green-700 border border-green-200' : (r.status === 'RUNNING' || r.status === 'STARTED' || r.status === 'STARTING') ? 'bg-orange-100 text-orange-700 animate-pulse border border-orange-200' : (r.status === 'FAILED' || r.status === 'FAILURE' || r.status === 'ERROR') ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-gray-200 text-gray-600 border border-gray-300'}`}>{r.status}</span>
-                                        </div>
-                                        <div className="text-[10px] text-gray-500 font-mono tracking-tighter">
-                                            {new Date(r.created_at).toLocaleDateString()} at {new Date(r.created_at).toLocaleTimeString()}
-                                        </div>
-                                    </div>
-                                ))}
+                    <StatusBadge status={status} message={statusMsg} />
+                  </form>
+                )}
+
+                {/* Tab 2: Run History Context Switcher */}
+                {activeTab === 'history' && (
+                  <div className="flex flex-col">
+                    {runs.length === 0 ? (
+                      <div className="text-xs text-center p-3 py-10 bg-gray-50 border border-dashed border-gray-200 rounded-lg text-gray-400">
+                        No runs recorded. Navigate to the tracking tab to launch a sequence.
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-2 max-h-[350px] overflow-y-auto pr-1">
+                        {runs.map(r => (
+                          <div key={r.id} onClick={() => setSelectedRunId(r.id)} className={`p-3 rounded-lg border cursor-pointer transition-all ${selectedRunId === r.id ? 'bg-indigo-50 border-indigo-400 border-l-[6px] shadow-sm' : 'bg-white hover:bg-gray-50 border-gray-200'} flex flex-col`}>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className={`text-xs font-bold truncate mr-2 flex-1 ${selectedRunId === r.id ? 'text-indigo-800' : 'text-gray-700'}`}>{r.name}</span>
+                              <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded shadow-[0_1px_2px_rgba(0,0,0,0.05)] ${(r.status === 'SUCCESS' || r.status === 'COMPLETED') ? 'bg-green-100 text-green-700 border border-green-200' : (r.status === 'RUNNING' || r.status === 'STARTED' || r.status === 'STARTING') ? 'bg-orange-100 text-orange-700 animate-pulse border border-orange-200' : (r.status === 'FAILED' || r.status === 'FAILURE' || r.status === 'ERROR') ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-gray-200 text-gray-600 border border-gray-300'}`}>{r.status}</span>
                             </div>
-                            )}
-                        </div>
+                            <div className="text-[10px] text-gray-500 font-mono tracking-tighter">
+                              {new Date(r.created_at).toLocaleDateString()} at {new Date(r.created_at).toLocaleTimeString()}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
-                </div>
+                  </div>
+                )}
+              </div>
             </div>
-            )}
+          )}
         </div>
       </div>
     </div>

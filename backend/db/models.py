@@ -22,7 +22,7 @@ class AnalysisRun(Base):
     name = Column(String(255), nullable=True)
     status = Column(String(50), default="IDLE")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    # Metatadata regarding the atmospheric conditions at the time of the run
+    # Metadata regarding the atmospheric conditions at the time of the run
     weather_data = Column(JSONB, nullable=True) 
 
 class GeospatialAsset(Base):

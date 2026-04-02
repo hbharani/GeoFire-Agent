@@ -143,6 +143,23 @@ const GlobalMapStyles = `
     width: 15px;
     animation: windy-trail 1s linear infinite;
   }
+
+  /* Premium Thinner Scrollbars */
+  ::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(107, 114, 128, 0.3);
+    border-radius: 10px;
+    transition: background 0.2s ease;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(107, 114, 128, 0.5);
+  }
 `;
 
 function WeatherLayer({ weatherData }) {
@@ -494,9 +511,8 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                         `}
                       </div>
                       
-                      <div class="pt-3 border-t border-white/5 flex justify-between items-center">
-                        <span class="text-[8px] text-gray-600 font-mono tracking-tighter uppercase font-bold">SN: ${feature.id?.slice(0, 8) || 'N/A'}</span>
-                        <button onclick="document.getElementById('${cardId}').classList.toggle('is-flipped')" class="text-[9px] font-black text-blue-400 hover:text-blue-200 transition-colors uppercase tracking-widest flex items-center gap-1">EXPERT VIEW <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M19 9l-7 7-7-7"/></svg></button>
+                      <div class="pt-3 border-t border-white/5 flex justify-end items-center">
+                        <button onclick="document.getElementById('${cardId}').classList.toggle('is-flipped')" class="text-[9px] font-black text-blue-400 hover:text-blue-200 transition-colors uppercase tracking-widest flex items-center gap-1">ANALYSIS VIEW <svg class="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><path d="M19 9l-7 7-7-7"/></svg></button>
                       </div>
                     </div>
 
@@ -504,7 +520,7 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                     <div class="card-back bg-gray-900/95 backdrop-blur-xl text-white p-5 border border-white/10 shadow-2xl flex flex-col justify-between">
                       <div>
                         <div class="mb-4 border-b border-white/10 pb-2 flex justify-between items-center">
-                          <span class="text-[10px] font-black uppercase tracking-widest text-indigo-400">EXPERT ANALYSIS</span>
+                          <span class="text-[10px] font-black uppercase tracking-widest text-indigo-400">ANALYSIS SUMMARY</span>
                           <button onclick="document.getElementById('${cardId}').classList.toggle('is-flipped')" class="text-[18px] text-gray-500 hover:text-white leading-none">&times;</button>
                         </div>
                         

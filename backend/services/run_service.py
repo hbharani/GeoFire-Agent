@@ -49,11 +49,12 @@ class RunService:
                 'features', COALESCE(json_agg(
                     json_build_object(
                         'type',       'Feature',
+                        'id',         ga.id,
                         'geometry',   ST_AsGeoJSON(ga.geometry)::json,
                         'properties', json_build_object('risk_level', ga.risk_level)::jsonb || COALESCE(ga.properties, '{}'::jsonb)
                     )
                 ), '[]'::json),
-                'properties', (SELECT weather_data FROM analysis_runs WHERE id = CAST(:rid AS UUID))
+                'properties', (SELECT weather_data FROM analysis_runs WHERE id = :rid)
             )
             FROM geospatial_assets ga
             WHERE ga.run_id = CAST(:rid AS UUID) AND ga.asset_type = 'RISK_POLYGON';
@@ -65,11 +66,12 @@ class RunService:
                 'features', COALESCE(json_agg(
                     json_build_object(
                         'type',       'Feature',
+                        'id',         ga.id,
                         'geometry',   ST_AsGeoJSON(ga.geometry)::json,
                         'properties', json_build_object('Name', 'Utility Line')
                     )
                 ), '[]'::json),
-                'properties', (SELECT weather_data FROM analysis_runs WHERE id = CAST(:rid AS UUID))
+                'properties', (SELECT weather_data FROM analysis_runs WHERE id = :rid)
             )
             FROM geospatial_assets ga
             WHERE ga.run_id = CAST(:rid AS UUID) AND ga.asset_type = 'UTILITY_LINE';

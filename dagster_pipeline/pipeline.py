@@ -231,13 +231,13 @@ def mask_and_calculate_risk(
     use_swir = use_swir and use_swir_internal
 
     # 2b. Calculate Dynamic Weather Grid based on MASKED bounds
-    from rasterio import array_bounds
+    from rasterio.transform import array_bounds
     h_masked, w_masked = red_masked[0].shape
-    masked_bounds = array_bounds(h_masked, w_masked, out_transform)
+    left, bottom, right, top = array_bounds(h_masked, w_masked, out_transform)
     
     # Calculate dynamic grid dimensions (Target: ~20km resolution)
-    width_m = masked_bounds.right - masked_bounds.left
-    height_m = masked_bounds.top - masked_bounds.bottom
+    width_m = right - left
+    height_m = top - bottom
     resolution_m = 20000.0 # 20km
     
     num_cols = max(1, math.ceil(width_m / resolution_m))
@@ -256,8 +256,8 @@ def mask_and_calculate_risk(
     for r in range(num_rows):
         for c in range(num_cols):
             # Calculate center of each cell in meters
-            mx = masked_bounds.left + (c + 0.5) * col_step
-            my = masked_bounds.bottom + (r + 0.5) * row_step
+            mx = left + (c + 0.5) * col_step
+            my = bottom + (r + 0.5) * row_step
             lon, lat = transformer.transform(mx, my)
             lats.append(lat)
             lons.append(lon)
@@ -362,8 +362,8 @@ def mask_and_calculate_risk(
             # Risk DNA: Sample the underlying raster data for this polygon using its centroid
             # Optimization: Instead of expensive geometry masking, we use the centroid for high-speed sampling
             centroid = poly.centroid
-            # Use masked_bounds instead of full raster_bounds for correct alignment
-            cx, cy = int((centroid.x - masked_bounds.left) * w / width_m), int((masked_bounds.top - centroid.y) * h / height_m)
+            # Use local variables from unpacked masked bounds for correct alignment
+            cx, cy = int((centroid.x - left) * w / width_m), int((top - centroid.y) * h / height_m)
             # Clip indices to avoid out-of-bounds
             cx, cy = max(0, min(w-1, cx)), max(0, min(h-1, cy))
             

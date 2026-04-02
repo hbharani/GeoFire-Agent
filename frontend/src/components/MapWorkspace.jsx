@@ -626,37 +626,68 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
         )}
       </MapContainer>
 
-      {/* Main Consolidated Bottom Bar */}
+      {/* Main Consolidated Bottom Bar - Iconified Edition */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] flex items-center bg-white/95 backdrop-blur shadow-2xl rounded-full p-1.5 border border-gray-200">
         
         {/* Base Maps Segment */}
         <div className="flex bg-gray-100 rounded-full p-1 border border-gray-200 shadow-inner mr-4">
-          {Object.entries(BASE_MAPS).map(([key, map]) => (
-            <button key={key} onClick={() => setActiveBaseMap(key)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${activeBaseMap === key ? "bg-white text-gray-800 shadow-md"  : "text-gray-500 hover:text-gray-700 hover:bg-gray-200"}`}>
-              {map.name}
-            </button>
-          ))}
+          <button 
+            onClick={() => setActiveBaseMap("dark")} 
+            title="Switch to Dark Matter map"
+            className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${activeBaseMap === "dark" ? "bg-white text-gray-800 shadow-md" : "text-gray-400 hover:text-gray-600"}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+            <span className="text-[10px] font-black uppercase">Dark</span>
+          </button>
+          <button 
+            onClick={() => setActiveBaseMap("light")} 
+            title="Switch to Light Grayscale map"
+            className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${activeBaseMap === "light" ? "bg-white text-gray-800 shadow-md" : "text-gray-400 hover:text-gray-600"}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M12 3v1m0 16v1m9-9h-1M4 11H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>
+            <span className="text-[10px] font-black uppercase">Light</span>
+          </button>
+          <button 
+            onClick={() => setActiveBaseMap("satellite")} 
+            title="Switch to High-Res Satellite Imagery"
+            className={`px-3 py-1.5 rounded-full flex items-center gap-1.5 transition-all ${activeBaseMap === "satellite" ? "bg-white text-gray-800 shadow-md" : "text-gray-400 hover:text-gray-600"}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 002 2 2 2 0 012 2v.657m1.403-14.206A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m17.432 0c.303.507.54 1.037.707 1.592M9 21h4.088c.056 0 .112-.03.137-.082l.83-1.725a.48.48 0 00-.115-.575l-1.396-1.144a.48.48 0 01-.157-.31l-.233-1.715M9 21a9 9 0 01-5.945-2.253" /></svg>
+            <span className="text-[10px] font-black uppercase">Earth</span>
+          </button>
         </div>
         
         <div className="w-px h-6 bg-gray-200 shadow-sm mr-4"></div>
         
         {/* Overlays Segment */}
-        <div className="flex items-center gap-3 pr-2 pl-2">
-          <button onClick={() => setShowLines(!showLines)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border shadow-sm flex items-center gap-2 ${showLines ? "bg-blue-500 text-white border-blue-600" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"}`}>
-            {showLines && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-            UTILITY NETWORK
+        <div className="flex items-center gap-2 pr-2 pl-2">
+          <button 
+            onClick={() => setShowLines(!showLines)} 
+            title="Toggle regional infrastructure and utility network layer"
+            className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border shadow-sm flex items-center gap-1.5 ${showLines ? "bg-blue-500 text-white border-blue-600" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            GRID
           </button>
-          <button onClick={() => setShowRisk(!showRisk)} className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all border shadow-sm flex items-center gap-2 ${showRisk ? "bg-orange-500 text-white border-orange-600" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"}`}>
-            {showRisk && <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-            THREAT POLYGONS
+          <button 
+            onClick={() => setShowRisk(!showRisk)} 
+            title="Toggle threat polygons and risk DNA segments"
+            className={`px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter transition-all border shadow-sm flex items-center gap-1.5 ${showRisk ? "bg-red-500 text-white border-red-600" : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"}`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            THREAT
           </button>
         </div>
         
         <div className="w-px h-6 bg-gray-200 shadow-sm mr-4 ml-1"></div>
         
-        <button onClick={() => setFitTrigger(f => f + 1)} className="px-4 py-1.5 rounded-full text-xs font-bold transition-all border shadow-sm flex items-center gap-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100">
-           <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
-           FIT TO DATA
+        <button 
+          onClick={() => setFitTrigger(f => f + 1)} 
+          title="Zoom to fit active analysis data on screen"
+          className="px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest transition-all border shadow-sm flex items-center gap-2 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 uppercase"
+        >
+           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+           FIT VIEW
         </button>
         
       </div>
@@ -667,20 +698,36 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
         <div className="bg-white shadow-2xl rounded-2xl flex flex-col border border-gray-100 overflow-hidden">
             <div className={`flex items-center justify-between px-4 py-3 bg-gray-900 text-white cursor-pointer ${panelOpen ? 'border-b border-gray-800' : ''}`} onClick={() => setPanelOpen((o) => !o)}>
                 <div className="flex items-center gap-2">
-                    <button onClick={(e) => { e.stopPropagation(); setActiveProjectId(null); }} className="mr-1 p-1 rounded hover:bg-gray-700 text-gray-400 transition-colors" title="Back to Dashboard">
+                    <button onClick={(e) => { e.stopPropagation(); setActiveProjectId(null); }} className="mr-1 p-1 rounded hover:bg-gray-700 text-gray-400 transition-colors" title="Return to Project Dashboard">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
                     </button>
                     <span className="font-extrabold tracking-tight text-lg truncate w-48">{activeProjectEntry?.name}</span>
                 </div>
-                <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-500 transition-transform ${panelOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                <button title={panelOpen ? "Collapse control panel" : "Expand control panel"}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 text-gray-500 transition-transform ${panelOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" /></svg>
+                </button>
             </div>
 
             {panelOpen && (
             <div className="flex flex-col bg-white">
                 {/* Tabs */}
-                <div className="flex border-b border-gray-100 text-xs font-bold tracking-wide uppercase">
-                    <button onClick={() => setActiveTab("history")} className={`flex-1 py-3 text-center transition-colors ${activeTab === 'history' ? 'border-b-2 border-indigo-500 text-indigo-700 bg-indigo-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>Analysis History</button>
-                    <button onClick={() => setActiveTab("upload")} className={`flex-1 py-3 text-center transition-colors ${activeTab === 'upload' ? 'border-b-2 border-indigo-500 text-indigo-700 bg-indigo-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}>New Analysis</button>
+                <div className="flex border-b border-gray-100 text-[10px] font-black tracking-widest uppercase">
+                    <button 
+                      onClick={() => setActiveTab("history")} 
+                      title="Browse and select historical analysis runs"
+                      className={`flex-1 py-3 flex items-center justify-center gap-2 transition-all ${activeTab === 'history' ? 'border-b-2 border-indigo-500 text-indigo-700 bg-indigo-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      HISTORY
+                    </button>
+                    <button 
+                      onClick={() => setActiveTab("upload")} 
+                      title="Configure and launch a new Sentinel-2 fire risk analysis"
+                      className={`flex-1 py-3 flex items-center justify-center gap-2 transition-all ${activeTab === 'upload' ? 'border-b-2 border-indigo-500 text-indigo-700 bg-indigo-50/50' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M12 4v16m8-8H4" /></svg>
+                      ANALYZE
+                    </button>
                 </div>
                 
                 <div className="px-5 py-4 pb-5">
@@ -692,8 +739,9 @@ export default function MapWorkspace({ activeProjectId, activeProjectEntry, setA
                             <FileField id="canopy" label="Canopy Height (Optional)" accept=".tif,.tiff,.geotiff" file={canopyFile} onChange={(e) => setCanopyFile(e.target.files[0] ?? null)} />
                             <FileField id="swir_band" label="SWIR Band (B11/B12, 20m - Optional)" accept=".tif,.tiff,.geotiff,.jp2" file={swirFile} onChange={(e) => setSwirFile(e.target.files[0] ?? null)} />
                             <FileField id="utility" label="Infrastructure Network" accept=".zip,.geojson,.json,.shp" file={utilityFile} onChange={(e) => setUtilityFile(e.target.files[0] ?? null)} />
-                            <button type="submit" disabled={runningJobId !== null} className="mt-2 w-full rounded-lg bg-indigo-600 py-3 text-sm font-bold text-white shadow-lg  hover:bg-indigo-700 hover:shadow-xl disabled:opacity-50 transition-all cursor-pointer">
-                                {runningJobId ? "Pipeline Processing..." : "Launch Analysis Sequence"}
+                            <button type="submit" disabled={runningJobId !== null} title="Execute high-performance end-to-end fire risk pipeline" className="mt-2 w-full flex items-center justify-center gap-2 rounded-lg bg-indigo-600 py-3 text-[11px] font-black uppercase tracking-widest text-white shadow-lg hover:bg-indigo-700 hover:shadow-xl disabled:opacity-50 transition-all cursor-pointer">
+                                <svg className={`w-4 h-4 ${runningJobId ? 'animate-bounce' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                {runningJobId ? "RUNNING..." : "LAUNCH"}
                             </button>
                             <StatusBadge status={status} message={statusMsg} />
                         </form>

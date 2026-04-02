@@ -1,6 +1,6 @@
 import uuid
 from sqlalchemy import Column, String, DateTime, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from geoalchemy2 import Geometry
 from .session import Base
@@ -22,6 +22,8 @@ class AnalysisRun(Base):
     name = Column(String(255), nullable=True)
     status = Column(String(50), default="IDLE")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    # Metadata regarding the atmospheric conditions at the time of the run
+    weather_data = Column(JSONB, nullable=True) 
 
 class GeospatialAsset(Base):
     __tablename__ = "geospatial_assets"
@@ -31,5 +33,7 @@ class GeospatialAsset(Base):
     run_id = Column(UUID(as_uuid=True), ForeignKey("analysis_runs.id", ondelete="CASCADE"), nullable=False)
     asset_type = Column(String(50), nullable=False) # 'UTILITY_LINE' or 'RISK_POLYGON'
     risk_level = Column(String(50), nullable=True)  # Low, Medium, High
+    # Risk DNA: Storing the specific NDVI, NDMI, and Wind stats that calculated this risk
+    properties = Column(JSONB, nullable=True)
     # Spatial Vector Column natively tracking WGS84 for dynamic intersection caching
     geometry = Column(Geometry(geometry_type="GEOMETRY", srid=4326))

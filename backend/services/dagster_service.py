@@ -33,13 +33,14 @@ class DagsterService:
     """
 
     @staticmethod
-    async def trigger_job(red_path: str, nir_path: str, utility_path: str, canopy_path: str, project_id: str, run_id: str) -> dict:
+    async def trigger_job(red_path: str, nir_path: str, utility_path: str, canopy_path: str, swir_path: str, project_id: str, run_id: str) -> dict:
         run_config = {
             "ops": {
                 "ingest_red_band": {"config": {"file_path": red_path}},
                 "ingest_nir_band": {"config": {"file_path": nir_path}},
                 "ingest_utility_lines": {"config": {"file_path": utility_path}},
                 "ingest_canopy_height": {"config": {"file_path": canopy_path}},
+                "ingest_swir_band": {"config": {"file_path": swir_path}},
                 "mask_and_calculate_risk": {"config": {"project_id": project_id, "run_id": run_id}},
             }
         }
@@ -77,7 +78,7 @@ class DagsterService:
             typename = result.get("__typename")
 
             if typename == "Run":
-                return result.get("status", "UNKNOWN")
+                return result.get("status", "UNKNOWN").upper()
             elif typename == "RunNotFoundError":
                 raise Exception(f"Dagster Run Not Found: {result.get('message')}")
             elif typename == "PythonError":

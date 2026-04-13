@@ -1,0 +1,10 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+fastapi
+uvicorn
+python-multipart
+transformers>=4.48.0
+peft
+torch
+torchvision
+pillow
+accelerate

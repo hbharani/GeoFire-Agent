@@ -1,0 +1,41 @@
+[
+  {
+    "image": "simsat_training_images/urban_infrastructure.png",
+    "conversations": [
+      {
+        "from": "user",
+        "value": "Analyze this high-resolution satellite tile. Classify the terrain, identify infrastructure presence, and assess the wildland fuel load risk. Respond in strict JSON."
+      },
+      {
+        "from": "assistant",
+        "value": "{\"terrain_classification\": \"urban\", \"high_fuel_load\": false, \"infrastructure_present\": true, \"risk_assessment\": \"High infrastructure value, low native fuel load.\"}"
+      }
+    ]
+  },
+  {
+    "image": "simsat_training_images/dense_boreal_fuel.png",
+    "conversations": [
+      {
+        "from": "user",
+        "value": "Analyze this high-resolution satellite tile. Classify the terrain, identify infrastructure presence, and assess the wildland fuel load risk. Respond in strict JSON."
+      },
+      {
+        "from": "assistant",
+        "value": "{\"terrain_classification\": \"dense_forest\", \"high_fuel_load\": true, \"infrastructure_present\": false, \"risk_assessment\": \"High continuous fuel load detected. Escalate for PostGIS buffer analysis.\"}"
+      }
+    ]
+  },
+  {
+    "image": "simsat_training_images/arid_low_risk.png",
+    "conversations": [
+      {
+        "from": "user",
+        "value": "Analyze this high-resolution satellite tile. Classify the terrain, identify infrastructure presence, and assess the wildland fuel load risk. Respond in strict JSON."
+      },
+      {
+        "from": "assistant",
+        "value": "{\"terrain_classification\": \"arid_barren\", \"high_fuel_load\": false, \"infrastructure_present\": false, \"risk_assessment\": \"Low fuel load. Minimal immediate threat.\"}"
+      }
+    ]
+  }
+]

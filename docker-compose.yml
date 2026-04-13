@@ -24,7 +24,7 @@ services:
       context: ./backend
     container_name: geofire_backend
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./data:/data
     environment:
@@ -65,6 +65,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - geofire_net
+
+  vision_edge:
+    build:
+      context: ./vision_edge
+    container_name: geofire_vision_scout
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./vision_edge/geofire_orbital_weights:/app/geofire_orbital_weights
     networks:
       - geofire_net
 

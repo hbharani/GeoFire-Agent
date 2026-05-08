@@ -5,7 +5,7 @@ import L from "leaflet";
 import FileField from "./ui/FileField";
 import StatusBadge from "./ui/StatusBadge";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8001";
 
 const BASE_MAPS = {
   dark: { name: "Dark Matter", url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" },

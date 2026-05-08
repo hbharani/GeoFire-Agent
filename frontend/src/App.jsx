@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import Dashboard from "./components/Dashboard";
 import MapWorkspace from "./components/MapWorkspace";
 
-const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8001";
 
 export default function App() {
   const [projects, setProjects] = useState([]);

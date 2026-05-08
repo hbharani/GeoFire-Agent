@@ -1,84 +1,76 @@
 # GeoFire-Agent
 
-> **Enterprise-Ready** — Vegetation & Utility-Line Fire-Risk Platform
+> **Orbital Edge Compute Agent** — Autonomous Satellite Triage & Fire-Risk Platform
 
 ## Overview
 
-A full-stack geospatial platform that lets you define tracking Workspaces, upload satellite GeoTIFFs (Red, NIR, and optional Canopy Height Models) and Utility-Line infrastructure, and then automatically triggers a high-performance NDVI-based fire-risk analysis pipeline orchestrated by Dagster.
+GeoFire-Agent has evolved from a deterministic PostGIS web-app into a multi-layered **Agentic Orbital Edge Compute** architecture. 
 
-Crucially, the entire agent runs off a C-optimized **PostgreSQL / PostGIS** database backend to natively compute vector intersections and strictly organize analysis data under isolated `Project` and `AnalysisRun` contexts.
+It simulates a low-power Low Earth Orbit (LEO) satellite performing autonomous perimeter sweeps. Imagery is dynamically acquired via Mapbox (or simulated via SimSat) and analyzed locally on edge hardware (CPU-only) using a fine-tuned **LiquidAI/LFM2.5-VL-450M** vision language model. The "Orbital Edge" acts as a bandwidth-saver—only escalating critical infrastructure or dense vegetation fire threats to the heavy downstream **Ground Station (Dagster + PostGIS)** for advanced GIS buffering and risk analysis.
 
-| Service | URL (local) |
-|---------|------------|
-| React Frontend | http://localhost:5173 |
-| FastAPI Backend | http://localhost:8000 |
-| FastAPI Docs | http://localhost:8000/docs |
-| Dagster Webserver | http://localhost:3000 |
+### Service Port Map (Local Environment)
 
-## Tech Stack
+| Service | Address Focus | Description |
+|---------|------------|-------------|
+| **React Dashboard** | `http://localhost:5173` | Visual interface mapped to the PostGIS results & runs |
+| **Dagster System** | `http://localhost:3000` | Ground Station GIS Pipeline Graph Controller |
+| **FastAPI Backend** | `http://localhost:8001` | Core Agent API routing & Orchestration (`/api/agent/patrol`) |
+| **Vision Scout Edge** | `vision_edge:8080` | Internal CPU-only VLM Inference Microservice |
+
+## Tech Stack & Architecture
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 18, Vite, TailwindCSS, React-Leaflet |
-| Backend | FastAPI, SQLAlchemy, GeoAlchemy2, Uvicorn |
-| Database | PostgreSQL 15, PostGIS 3.4 |
-| Orchestration | Dagster |
-| Geospatial Compute | GeoPandas, Rasterio, Shapely |
-| Infrastructure | Docker Compose |
-
-## Architecture Structure
+| **Edge Vision Inference** | `transformers`, `peft` (LoRA), CPU PyTorch (`vision_edge` microservice) |
+| **Fine-Tuning Stack** | Google Colab, HuggingFace `accelerate`, LFM2-VL format |
+| **Agent / Orchestrator** | FastAPI `async` routers, `httpx`, LangGraph integration scaffolding |
+| **Ground Station GIS** | Dagster, PostGIS 3.4, SQLAlchemy, GeoPandas, Shapely |
+| **Ground UI Dashboard** | React 18, Vite, TailwindCSS, React-Leaflet |
 
 ```text
 GeoFire-Agent/
-├── docker-compose.yml           # Bootstraps Postgres, FastAPI, Dagster, and Vite
-├── backend/
-│   ├── database.py              # SQLAlchemy engine bound to async lifespans
-│   ├── models.py                # Project, AnalysisRun, and GeospatialAsset schemas
-│   └── main.py                  # Routing endpoints + Dagster telemetry interceptors
-├── dagster_pipeline/
-│   └── pipeline.py              # Compute graph handling chunked EWKT PostGIS batching
-└── frontend/
-    └── src/
-        ├── components/
-        │   ├── Dashboard.jsx    # Active grid module for handling Project CRUD
-        │   └── MapWorkspace.jsx # Leaflet map with overlaid UI Analysis History tabs
-        └── App.jsx              # Lightweight UI Context router
+├── docker-compose.yml           # Bootstraps Postgres, FastAPI, Vision Scout, Dagster, and Vite
+├── test_orbital_patrol.py       # Simulates a multi-sector orbital pass hitting the Edge API
+├── colab/
+│   └── finetune_lfm.ipynb       # Standalone Colab notebook to generate LoRA weights
+├── vision_edge/                 # [NEW] Edge CPU visual evaluation microservice
+│   ├── app.py                   # Fast inferences on LFM2.5-VL-450M 
+│   └── geofire_orbital_weights/ # Mount dir for resulting Colab LoRA adapters
+├── backend/                     
+│   ├── main.py                  # Hosts the Agentic Patrol logic & API Endpoints
+│   └── agent/orchestrator.py    # Multi-node logic triggering Dagster Downlinks
+├── dagster_pipeline/            # Heavy raster intersection + buffer jobs
+└── frontend/                    # Ground Station GUI
 ```
 
 ## Quick Start
 
+### 1. Model Fine-Tuning (Mandatory for Vision Edge)
+The Local Vision Scout requires an expert adapter.
+1. Open `colab/finetune_lfm.ipynb` in Google Colab (requires free T4 GPU).
+2. It will dynamically fetch training images from the Mapbox API to simulate actual satellite tiles, assemble LFM-VL formatted JSONs, and execute a quick LoRA parameter fine-tune.
+3. Download the resulting weights from your Google Drive into the local directory `./vision_edge/geofire_orbital_weights/`.
+
+### 2. Bootstrapping the Local Cluster
+Once your weights are secured, boot the main orchestration pipeline:
 ```bash
-# 1. Clone the repository
+# Clone the repository and navigate inside
 git clone https://github.com/hbharani/GeoFire-Agent.git
 cd GeoFire-Agent
 
-# 2. Build and start all services natively
-# (The Postgres DB requires time to boot its TCP layer)
-docker compose up -d --build
-
-# 3. Open http://localhost:5173 in your browser!
-
-# 4. Download Sample Data
-# Head over to the Releases tab on GitHub to download `geofire_sample_data.zip`. 
-# Extract it to securely retrieve the original Red, NIR, and Utility Line files without bloating Git!
+# Build and start all 5 isolated systems native to Docker Compose
+docker-compose up -d --build
 ```
 
-## System Workflow Pipeline
+### 3. Initiate the Agentic Patrol
+To watch the edge compute logic execute its sweep and conditionally trigger ground downlinks, run the packaged simulation script:
+```bash
+python test_orbital_patrol.py
+```
+*Note: Depending on your hardware, the `vision_edge` CPU container can take upwards of ~45s per tile to infer and output its deterministic JSON diagnosis.*
 
-Instead of dragging huge flat `.geojson` outputs out to the UI, the GeoFire backend natively translates calculations straight into binary database mappings:
+### 4. Review the Ground Station
+If an anomaly is escalated by the Scout, track the resulting detailed geo-processing buffers locally at `http://localhost:3000` (Dagster UI), and visually observe the flagged vectors at `http://localhost:5173` (React Dashboard).
 
-1. **Ingestion** — API caches Multi-spectral TIFF layers (Red, NIR, Canopy Height) on disk and maps their path string boundaries.
-2. **Buffer Operations** — Identifies shape intersections, and isolates utility bounds exactly matching active target grids.
-3. **Vegetation & Canopy Classification** — Evaluates spectral boundaries `((NIR - Red) / (NIR + Red))` and integrates CHM verticality to map Low, Medium, and High foliage threat sectors.
-4. **PostGIS Chunk Sync** — Overrides strict Python geometry processing and relies on raw `SQLAlchemy Core` to batch inject vectors dynamically formatted as `"SRID=4326;{geometry}"` cleanly isolated by `run_id`.
-5. **Dynamic UI Rendering** — The interface isolates execution histories dynamically utilizing `ST_AsGeoJSON()`.
-
-## Future Work
-
-This V1 MVP demonstrates high-performance spatial orchestration, but the analytical models will be expanded in future versions based on interest and specific utility needs:
-
-- **True Fuel Moisture (NDMI)**: Integrating SWIR (Shortwave Infrared) bands alongside NDVI to dynamically calculate the physical water-content of vegetation (dry dead timber vs healthy wet forests).
-- **Topographical Scalars (DEM)**: Utilizing Digital Elevation Models to scale fire-spread risk exponentially across steeply inclined transmission line right-of-ways.
-- **Meteorological API Integration**: Layering live relative humidity, ambient temperature, and wind-vector data onto the localized threat score.
-- **Advanced Canopy Strike Models**: Further utilizing the Canopy Height Model (CHM) ingest layer to calculate physical fall/strike risks from timber dynamically encroaching into utility easement cylinders.
-- **Multi-Agent Orchestration (LangGraph & LLMs)**: Evolving the platform from a deterministic GIS pipeline into a true Agentic workflow. Future iterations will integrate LangGraph to autonomously query the highest-risk PostGIS threat polygons, cross-reference them with maintenance budgets or regulatory compliance documents via RAG, and generate prioritized, human-readable vegetation management reports for utility dispatch crews.
+## Why CPU-Only Edge Compute?
+Hackers naturally scale to the cloud. We restricted the Vision pipeline (`vision_edge`) explicitly to Python 3.13-slim with strict `--index-url cpu` PyTorch constraints. This realistically mimics the extreme power and cooling restrictions a small LEO satellite chassis experiences, demonstrating viability for "Space Hackathon" deploy-to-orbit architectures. Bandwidth to Ground hurts; compute on edge saves it.
